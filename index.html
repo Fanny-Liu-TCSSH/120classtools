@@ -1,0 +1,2942 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高一 120 班級經營與座位管理互動系統 (大屏舒適版)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+    <!-- html2canvas & jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        theme: {
+                            navy: '#0f172a',
+                            slate: '#1e293b',
+                            gold: '#fbbf24',
+                            amber: '#f59e0b',
+                            sky: '#0284c7',
+                            emerald: '#10b981',
+                            rose: '#f43f5e',
+                            bg: '#f8fafc'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans TC', 'Fredoka', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #f1f5f9;
+            background-image: radial-gradient(#cbd5e1 1.5px, transparent 1.5px);
+            background-size: 24px 24px;
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #e2e8f0; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        .seat-card {
+            transition: all 0.2s ease-in-out;
+        }
+        .seat-card:hover {
+            transform: translateY(-3px);
+        }
+        .perspective-student {
+            transform: rotate(180deg);
+        }
+        .perspective-student .seat-content {
+            transform: rotate(180deg);
+        }
+        .dopamine-card {
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+        }
+        .btn-shadow {
+            box-shadow: 0 3px 0 0 rgba(0, 0, 0, 0.2);
+            transition: all 0.1s ease;
+        }
+        .btn-shadow:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 0 rgba(0, 0, 0, 0.2);
+        }
+
+        /* Print formatting */
+        @media print {
+            body * {
+                visibility: hidden !important;
+            }
+            #printableArea, #printableArea * {
+                visibility: visible !important;
+            }
+            #printableArea {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 20px !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                display: block !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-800 font-sans min-h-screen flex flex-col">
+
+    <header class="bg-slate-900 text-white shadow-xl sticky top-0 z-40 no-print border-b-4 border-amber-400">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                
+                <!-- Title & Secret Mode Trigger -->
+                <div class="flex items-center space-x-3 cursor-pointer select-none" onclick="handleLogoClick()" title="連續點擊 3 次切換導師祕密模式">
+                    <div class="bg-amber-400 text-slate-900 p-2.5 rounded-2xl font-black flex items-center justify-center w-12 h-12 shadow-lg border-2 border-slate-900 hover:scale-105 transition">
+                        <i class="fa-solid fa-chalkboard-user text-2xl"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h1 class="font-extrabold text-2xl tracking-wide leading-tight text-white drop-shadow">高一導師班級經營系統</h1>
+                            <span id="secretBadge" class="bg-slate-800 text-amber-300 text-xs px-2.5 py-1 rounded-full font-bold border border-amber-400/50 flex items-center space-x-1">
+                                <i class="fa-solid fa-lock" id="secretIcon"></i>
+                                <span id="secretText">學生投影模式</span>
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-300 font-bold" id="classInfoTitle">高一 120 班 | 35 人 (6×6 大屏螢幕模式)</p>
+                    </div>
+                </div>
+                
+                <!-- Navigation Tabs -->
+                <nav class="hidden md:flex space-x-2 bg-slate-800/80 p-1.5 rounded-2xl border border-slate-700">
+                    <button onclick="switchTab('seating')" id="nav-seating" class="tab-btn active px-4 py-2 rounded-xl text-sm font-black transition flex items-center space-x-2 bg-amber-400 text-slate-900 shadow-md">
+                        <i class="fa-solid fa-chair text-base"></i>
+                        <span>座位表管理</span>
+                    </button>
+                    <button onclick="switchTab('cleaning')" id="nav-cleaning" class="tab-btn px-4 py-2 rounded-xl text-sm font-black transition flex items-center space-x-2 text-slate-200 hover:bg-slate-700">
+                        <i class="fa-solid fa-broom text-base"></i>
+                        <span>掃地工作</span>
+                    </button>
+                    <button onclick="switchTab('cadres')" id="nav-cadres" class="tab-btn px-4 py-2 rounded-xl text-sm font-black transition flex items-center space-x-2 text-slate-200 hover:bg-slate-700">
+                        <i class="fa-solid fa-user-graduate text-base"></i>
+                        <span>幹部與小老師</span>
+                    </button>
+                    <button onclick="switchTab('tools')" id="nav-tools" class="tab-btn px-4 py-2 rounded-xl text-sm font-black transition flex items-center space-x-2 text-slate-200 hover:bg-slate-700">
+                        <i class="fa-solid fa-toolbox text-base"></i>
+                        <span>課堂小工具</span>
+                    </button>
+                    <button onclick="switchTab('students')" id="nav-students" class="tab-btn px-4 py-2 rounded-xl text-sm font-black transition flex items-center space-x-2 text-slate-200 hover:bg-slate-700">
+                        <i class="fa-solid fa-address-book text-base"></i>
+                        <span>學生名冊</span>
+                    </button>
+                </nav>
+
+                <!-- Action Controls -->
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleSecretModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-xl text-xs font-bold border border-amber-400/60 flex items-center space-x-1 shadow">
+                        <i class="fa-solid fa-user-shield"></i>
+                        <span class="hidden sm:inline">導師密碼</span>
+                    </button>
+                    <button onclick="saveDataToLocal()" class="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-black border border-sky-400 shadow btn-shadow flex items-center space-x-1">
+                        <i class="fa-solid fa-floppy-disk"></i>
+                        <span class="hidden sm:inline">儲存資料</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Navigation -->
+        <div class="md:hidden flex overflow-x-auto bg-slate-950 px-3 py-2 space-x-2 border-t border-slate-800 text-xs font-bold">
+            <button onclick="switchTab('seating')" class="mobile-tab-btn whitespace-nowrap px-3.5 py-1.5 rounded-xl bg-amber-400 text-slate-900">座位表</button>
+            <button onclick="switchTab('cleaning')" class="mobile-tab-btn whitespace-nowrap px-3.5 py-1.5 rounded-xl text-slate-200 hover:bg-slate-800">掃地工作</button>
+            <button onclick="switchTab('cadres')" class="mobile-tab-btn whitespace-nowrap px-3.5 py-1.5 rounded-xl text-slate-200 hover:bg-slate-800">幹部小老師</button>
+            <button onclick="switchTab('tools')" class="mobile-tab-btn whitespace-nowrap px-3.5 py-1.5 rounded-xl text-slate-200 hover:bg-slate-800">課堂小工具</button>
+            <button onclick="switchTab('students')" class="mobile-tab-btn whitespace-nowrap px-3.5 py-1.5 rounded-xl text-slate-200 hover:bg-slate-800">學生名冊</button>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6">
+
+        <!-- TAB 1: SEATING CHART -->
+        <section id="tab-seating" class="tab-content space-y-6">
+            
+            <!-- Control Toolbar -->
+            <div class="bg-white p-4 rounded-2xl border-2 border-slate-300 shadow-md flex flex-wrap items-center justify-between gap-4 no-print">
+                <div class="flex items-center space-x-3 flex-wrap gap-y-2">
+                    <span class="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center space-x-1 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-300">
+                        <i class="fa-solid fa-table-cells text-base mr-1 text-slate-600"></i>
+                        <span>網格尺寸:</span>
+                    </span>
+                    <div class="flex items-center space-x-1 bg-amber-50 p-1 rounded-xl border border-amber-300">
+                        <span class="text-xs font-black text-slate-800 px-1.5">排(高):</span>
+                        <button onclick="adjustGridDimensions(-1, 0)" class="w-7 h-7 rounded-lg bg-white border border-slate-300 hover:bg-amber-200 font-black text-base flex items-center justify-center">-</button>
+                        <span id="rowCountDisplay" class="w-7 text-center font-black text-lg text-amber-700">6</span>
+                        <button onclick="adjustGridDimensions(1, 0)" class="w-7 h-7 rounded-lg bg-white border border-slate-300 hover:bg-amber-200 font-black text-base flex items-center justify-center">+</button>
+                    </div>
+                    <div class="flex items-center space-x-1 bg-sky-50 p-1 rounded-xl border border-sky-300">
+                        <span class="text-xs font-black text-slate-800 px-1.5">列(寬):</span>
+                        <button onclick="adjustGridDimensions(0, -1)" class="w-7 h-7 rounded-lg bg-white border border-slate-300 hover:bg-sky-200 font-black text-base flex items-center justify-center">-</button>
+                        <span id="colCountDisplay" class="w-7 text-center font-black text-lg text-sky-700">6</span>
+                        <button onclick="adjustGridDimensions(0, 1)" class="w-7 h-7 rounded-lg bg-white border border-slate-300 hover:bg-sky-200 font-black text-base flex items-center justify-center">+</button>
+                    </div>
+                    <span class="text-xs font-bold text-slate-500 hidden lg:inline">(總容納 <span id="maxCapacityDisplay" class="font-black text-sky-700">36</span> 位)</span>
+                </div>
+
+                <div class="flex items-center space-x-2 flex-wrap gap-2">
+                    <div class="inline-flex rounded-xl border border-slate-300 p-1 bg-slate-100">
+                        <button onclick="setPerspective('teacher')" id="btn-persp-teacher" class="px-3 py-1.5 text-xs font-black rounded-lg bg-slate-800 text-white shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-user-ninja"></i>
+                            <span>老師視角 (講台在下)</span>
+                        </button>
+                        <button onclick="setPerspective('student')" id="btn-persp-student" class="px-3 py-1.5 text-xs font-black rounded-lg text-slate-700 hover:text-slate-900 flex items-center space-x-1">
+                            <i class="fa-solid fa-graduation-cap"></i>
+                            <span>學生視角 (講台在上)</span>
+                        </button>
+                    </div>
+
+                    <button onclick="openConstraintsModal()" id="btnConstraintModalTrigger" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black flex items-center space-x-1 shadow btn-shadow hidden">
+                        <i class="fa-solid fa-user-lock"></i>
+                        <span>排座約束 (排與列) (<span id="constraintCountTag">0</span>)</span>
+                    </button>
+                </div>
+
+                <!-- Export & Action Buttons -->
+                <div class="flex items-center space-x-1.5 flex-wrap gap-y-2">
+                    <button onclick="printSeatingChart()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1">
+                        <i class="fa-solid fa-print"></i>
+                        <span>列印</span>
+                    </button>
+                    <button onclick="exportSeatingPDF()" class="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1">
+                        <i class="fa-solid fa-file-pdf"></i>
+                        <span>PDF</span>
+                    </button>
+                    <button onclick="exportSeatingPNG()" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1">
+                        <i class="fa-solid fa-file-image"></i>
+                        <span>圖片</span>
+                    </button>
+                    <button onclick="exportSeatingCSV()" class="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1">
+                        <i class="fa-solid fa-file-csv"></i>
+                        <span>CSV</span>
+                    </button>
+                    <button onclick="resetToPhotoLayout()" class="px-3 py-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded-xl text-xs font-black border border-slate-900 shadow btn-shadow flex items-center space-x-1">
+                        <i class="fa-solid fa-camera"></i>
+                        <span>載入照片真實座位</span>
+                    </button>
+                    <button onclick="randomizeSeats()" class="px-3 py-1.5 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-xl text-xs font-black border border-slate-900 shadow btn-shadow flex items-center space-x-1">
+                        <i class="fa-solid fa-shuffle"></i>
+                        <span>一鍵隨機換座</span>
+                    </button>
+                    <button onclick="clearAllSeats()" class="px-2.5 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 rounded-xl text-xs font-black">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>清空座位</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Classroom Seating Render Container -->
+            <div id="seatingRenderContainer" class="bg-white p-6 rounded-3xl border-2 border-slate-300 shadow-lg relative overflow-hidden">
+                <div id="lecternBar" class="w-full max-w-2xl mx-auto mb-6 hidden transition-all">
+                    <div class="bg-slate-900 text-amber-300 text-center py-2.5 px-8 rounded-2xl shadow-md border-2 border-amber-400 flex items-center justify-center space-x-4">
+                        <i class="fa-solid fa-chalkboard text-xl text-sky-400"></i>
+                        <span class="font-black tracking-widest text-lg uppercase">講 台 / 黑 板 (學生面向視角)</span>
+                        <i class="fa-solid fa-chalkboard text-xl text-sky-400"></i>
+                    </div>
+                </div>
+
+                <!-- Filter Bar -->
+                <div class="mb-5 flex flex-wrap items-center justify-between gap-3 bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-200 text-xs font-bold no-print">
+                    <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                        <span class="font-black text-slate-700 mr-1"><i class="fa-solid fa-eye text-sky-600 mr-1"></i>高亮篩選:</span>
+                        <button onclick="highlightSeats('all')" class="hl-btn px-2.5 py-1 rounded-lg bg-slate-800 text-white font-black">全部</button>
+                        <button onclick="highlightSeats('male')" class="hl-btn px-2.5 py-1 rounded-lg bg-sky-100 text-sky-900 border border-sky-300">男生</button>
+                        <button onclick="highlightSeats('female')" class="hl-btn px-2.5 py-1 rounded-lg bg-rose-100 text-rose-900 border border-rose-300">女生</button>
+                        <button onclick="highlightSeats('cadres')" class="hl-btn px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-300">班幹部</button>
+                        <button onclick="highlightSeats('helpers')" class="hl-btn px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-900 border border-emerald-300">小老師</button>
+                    </div>
+                    <div class="flex items-center space-x-4 font-extrabold text-slate-600">
+                        <span class="flex items-center space-x-1"><span class="w-3.5 h-3.5 rounded-full bg-emerald-400 border border-slate-700 inline-block"></span> <span>已配座 (<span id="assignedCountDisplay" class="text-slate-900">0</span>)</span></span>
+                        <span class="flex items-center space-x-1"><span class="w-3.5 h-3.5 rounded-full bg-slate-200 border border-slate-400 inline-block"></span> <span>預留位 (<span id="reservedCountDisplay" class="text-slate-900">0</span>)</span></span>
+                        <span id="violationLegend" class="flex items-center space-x-1 hidden"><span class="w-3.5 h-3.5 rounded-full bg-rose-500 border border-slate-700 inline-block"></span> <span class="text-rose-600 font-black">約束警示</span></span>
+                    </div>
+                </div>
+
+                <!-- Seating Grid -->
+                <div id="seatingGridContainer" class="w-full overflow-x-auto pb-4 transition-transform duration-300">
+                    <div id="seatingGrid" class="grid gap-3 min-w-[650px] mx-auto transition-all">
+                        <!-- Dynamic Seat Cards generated via JS -->
+                    </div>
+                </div>
+
+                <div id="lecternBarBottom" class="w-full max-w-2xl mx-auto mt-6 transition-all">
+                    <div class="bg-slate-900 text-amber-300 text-center py-2.5 px-8 rounded-2xl shadow-md border-2 border-amber-400 flex items-center justify-center space-x-4">
+                        <i class="fa-solid fa-chalkboard text-xl text-sky-400"></i>
+                        <span class="font-black tracking-widest text-lg uppercase">講 台 / 黑 板 (導師視角 - 講台在下)</span>
+                        <i class="fa-solid fa-chalkboard text-xl text-sky-400"></i>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 2: CLEANING DUTIES -->
+        <section id="tab-cleaning" class="tab-content hidden space-y-6">
+            <div id="cleaningRenderContainer" class="bg-white p-6 rounded-3xl border-2 border-slate-300 shadow-lg">
+                <div class="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b-2 border-slate-200">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 flex items-center space-x-2">
+                            <i class="fa-solid fa-broom text-sky-600"></i>
+                            <span>掃地工作區域與人員分配 (高一120班配置)</span>
+                        </h2>
+                        <p class="text-slate-500 text-sm font-bold mt-1">內掃組、外掃區、廁所掃區(設備組旁女廁)、抬餐與機動組 | 支援手動指定與一鍵補滿！</p>
+                    </div>
+
+                    <div class="flex items-center space-x-1.5 flex-wrap gap-y-2 no-print">
+                        <button onclick="printCleaningDuties()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-print"></i>
+                            <span>列印</span>
+                        </button>
+                        <button onclick="exportCleaningPDF()" class="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-file-pdf"></i>
+                            <span>PDF</span>
+                        </button>
+                        <button onclick="exportCleaningPNG()" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-file-image"></i>
+                            <span>圖片</span>
+                        </button>
+                        <button onclick="exportCleaningCSV()" class="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-file-csv"></i>
+                            <span>CSV</span>
+                        </button>
+                        <button onclick="resetCleaningDutiesToDefault()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black border border-slate-900 shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                            <span>載入預設35人工作表(含衛生/環保)</span>
+                        </button>
+                        <button onclick="fillRemainingCleaningAssignments()" class="px-3 py-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded-xl text-xs font-black border border-slate-900 shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>補滿剩餘空缺</span>
+                        </button>
+                        <button onclick="randomAssignCleaning(false)" class="px-3 py-1.5 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-xl text-xs font-black border border-slate-900 shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-dice"></i>
+                            <span>全班隨機重新分配</span>
+                        </button>
+                        <button onclick="clearAllCleaningAssignments()" class="px-2.5 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl text-xs font-black border border-rose-300">
+                            <i class="fa-solid fa-trash-can"></i>
+                            <span>一鍵清空</span>
+                        </button>
+                        <button onclick="openAddDutyModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>新增工作區域</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="cleaningDutiesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    <!-- Dynamic Cleaning duties -->
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: CADRES & HELPERS -->
+        <section id="tab-cadres" class="tab-content hidden space-y-6">
+            <div id="cadresRenderContainer" class="bg-white p-6 rounded-3xl border-2 border-slate-300 shadow-lg">
+                <div class="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b-2 border-slate-200">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 flex items-center space-x-2">
+                            <i class="fa-solid fa-user-graduate text-amber-500"></i>
+                            <span>班級幹部與各科小老師名冊</span>
+                        </h2>
+                        <p class="text-slate-500 text-sm font-bold mt-1">主科預設配置 2 人，支援指定人選後一鍵補滿空缺！</p>
+                    </div>
+                    
+                    <div class="flex items-center space-x-1.5 flex-wrap gap-y-2 no-print">
+                        <button onclick="printCadresAndHelpers()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-print"></i>
+                            <span>列印</span>
+                        </button>
+                        <button onclick="exportCadresPDF()" class="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-file-pdf"></i>
+                            <span>PDF</span>
+                        </button>
+                        <button onclick="exportCadresPNG()" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-file-image"></i>
+                            <span>圖片</span>
+                        </button>
+                        <button onclick="exportCadresCSV()" class="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-file-csv"></i>
+                            <span>CSV</span>
+                        </button>
+                        <button onclick="fillRemainingCadresAndHelpers()" class="px-3 py-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded-xl text-xs font-black border border-slate-900 shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>補滿剩餘空缺</span>
+                        </button>
+                        <button onclick="randomAssignCadresAndHelpers(false)" class="px-3 py-1.5 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-xl text-xs font-black border border-slate-900 shadow btn-shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-dice"></i>
+                            <span>全班隨機重新分配</span>
+                        </button>
+                        <button onclick="clearAllCadresAndHelpers()" class="px-2.5 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl text-xs font-black border border-rose-300">
+                            <i class="fa-solid fa-trash-can"></i>
+                            <span>一鍵清空</span>
+                        </button>
+                        <button onclick="openAddCadreModal()" class="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-black border border-amber-300">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>新增幹部</span>
+                        </button>
+                        <button onclick="openAddSubjectModal()" class="px-2.5 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 rounded-xl text-xs font-black border border-emerald-300">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>新增小老師</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Officers Column -->
+                    <div class="bg-slate-50 p-5 rounded-3xl border border-slate-200">
+                        <div class="flex items-center justify-between mb-4 pb-2 border-b-2 border-slate-200">
+                            <h3 class="text-xl font-black text-slate-900 flex items-center space-x-2">
+                                <i class="fa-solid fa-award text-amber-500"></i>
+                                <span>班級幹部職務</span>
+                            </h3>
+                            <span id="cadreCountBadge" class="bg-amber-300 text-slate-900 px-3 py-1 rounded-xl text-xs font-black border border-slate-800">0 項職務</span>
+                        </div>
+                        <div id="officersList" class="space-y-2.5">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Helpers Column -->
+                    <div class="bg-slate-50 p-5 rounded-3xl border border-slate-200">
+                        <div class="flex items-center justify-between mb-4 pb-2 border-b-2 border-slate-200">
+                            <h3 class="text-xl font-black text-slate-900 flex items-center space-x-2">
+                                <i class="fa-solid fa-book-open-reader text-sky-600"></i>
+                                <span>各科小老師名冊</span>
+                            </h3>
+                            <span id="helperCountBadge" class="bg-sky-300 text-slate-900 px-3 py-1 rounded-xl text-xs font-black border border-slate-800">0 科目</span>
+                        </div>
+                        <div id="helpersList" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 4: CLASSROOM UTILITIES & TOOLS -->
+        <section id="tab-tools" class="tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                <!-- Random Picker Card -->
+                <div class="bg-white p-6 rounded-3xl border-2 border-slate-300 shadow-md flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-xl font-black text-slate-900 flex items-center space-x-2">
+                                <i class="fa-solid fa-dice text-amber-500 text-2xl"></i>
+                                <span>課堂隨機抽籤卡</span>
+                            </h3>
+                            <button onclick="openToolFocus('picker')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-xl text-xs font-black flex items-center space-x-1 shadow">
+                                <i class="fa-solid fa-expand"></i>
+                                <span>聚焦全螢幕</span>
+                            </button>
+                        </div>
+
+                        <div class="bg-slate-900 p-6 rounded-2xl border-2 border-slate-800 text-center text-white my-3 shadow-inner">
+                            <div id="pickerResult" class="text-3xl font-black tracking-wider py-2 text-amber-300">準備抽籤</div>
+                            <div id="pickerSubText" class="text-xs font-bold text-slate-400">點擊下方按鈕開始</div>
+                        </div>
+
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center space-x-2">
+                                <input type="checkbox" id="noRepeatCheck" class="w-4 h-4 rounded text-slate-800 border-2 border-slate-400 focus:ring-slate-800" checked>
+                                <label for="noRepeatCheck" class="text-xs font-bold text-slate-700 select-none">不重複抽籤</label>
+                            </div>
+                            <button onclick="resetPickedHistory()" class="text-xs text-rose-600 hover:text-rose-800 font-bold">重置記錄</button>
+                        </div>
+
+                        <!-- Drawn History Area -->
+                        <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 mb-4">
+                            <div class="flex justify-between items-center text-xs font-black text-slate-600 mb-1.5">
+                                <span>已抽過同學紀錄:</span>
+                                <span id="pickedHistoryCount">0 / 35 人</span>
+                            </div>
+                            <div id="pickedHistoryTags" class="flex flex-wrap gap-1 max-h-24 overflow-y-auto text-xs font-bold text-slate-700">
+                                <span class="text-slate-400 italic">尚無抽籤紀錄</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="pickRandomStudent()" class="w-full py-3 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-xl font-black text-base border border-slate-900 shadow btn-shadow flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>抽取幸運同學</span>
+                    </button>
+                </div>
+
+                <!-- Group Generator Card -->
+                <div class="bg-white p-6 rounded-3xl border-2 border-slate-300 shadow-md flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-xl font-black text-slate-900 flex items-center space-x-2">
+                                <i class="fa-solid fa-users-viewfinder text-sky-600 text-2xl"></i>
+                                <span>動態分組產生器</span>
+                            </h3>
+                            <button onclick="openToolFocus('groups')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-xl text-xs font-black flex items-center space-x-1 shadow">
+                                <i class="fa-solid fa-expand"></i>
+                                <span>聚焦全螢幕</span>
+                            </button>
+                        </div>
+
+                        <div class="flex items-center space-x-3 mb-4">
+                            <label class="text-xs font-black text-slate-700">目標組數:</label>
+                            <select id="groupCountSelect" class="bg-slate-100 border border-slate-300 rounded-xl px-3 py-1.5 font-black text-sm text-slate-900">
+                                <option value="4">4 組</option>
+                                <option value="5" selected>5 組</option>
+                                <option value="6">6 組</option>
+                                <option value="7">7 組</option>
+                                <option value="8">8 組</option>
+                            </select>
+                        </div>
+
+                        <div id="groupResultsGrid" class="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto p-1">
+                            <div class="text-xs font-bold text-slate-400 text-center col-span-2 py-8">點擊下方按鈕產生組別</div>
+                        </div>
+                    </div>
+
+                    <button onclick="generateGroups()" class="w-full py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-xl font-black text-base border border-slate-900 shadow btn-shadow flex items-center justify-center space-x-2 mt-4">
+                        <i class="fa-solid fa-shuffle"></i>
+                        <span>一鍵隨機均分小組</span>
+                    </button>
+                </div>
+
+                <!-- Classroom Timer Card -->
+                <div class="bg-white p-6 rounded-3xl border-2 border-slate-300 shadow-md flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-xl font-black text-slate-900 flex items-center space-x-2">
+                                <i class="fa-solid fa-stopwatch text-emerald-600 text-2xl"></i>
+                                <span>課堂倒數計時器</span>
+                            </h3>
+                            <button onclick="openToolFocus('timer')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-xl text-xs font-black flex items-center space-x-1 shadow">
+                                <i class="fa-solid fa-expand"></i>
+                                <span>聚焦全螢幕</span>
+                            </button>
+                        </div>
+
+                        <div class="bg-slate-900 text-emerald-400 p-6 rounded-2xl border-2 border-slate-800 text-center my-4 cursor-pointer hover:bg-slate-950 transition" onclick="openToolFocus('timer')">
+                            <div id="timerDisplay" class="text-5xl font-black tracking-widest font-mono">05:00</div>
+                        </div>
+
+                        <div class="flex justify-center space-x-1.5 mb-4">
+                            <button onclick="setTimerPreset(1)" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-black border border-slate-300">1 分鐘</button>
+                            <button onclick="setTimerPreset(3)" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-black border border-slate-300">3 分鐘</button>
+                            <button onclick="setTimerPreset(5)" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-black border border-slate-300">5 分鐘</button>
+                            <button onclick="setTimerPreset(10)" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-black border border-slate-300">10 分鐘</button>
+                        </div>
+                    </div>
+
+                    <div class="flex space-x-2">
+                        <button onclick="startTimer()" class="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black text-sm border border-slate-900 shadow btn-shadow flex items-center justify-center space-x-1">
+                            <i class="fa-solid fa-play"></i>
+                            <span>開始</span>
+                        </button>
+                        <button onclick="pauseTimer()" class="flex-1 py-3 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-xl font-black text-sm border border-slate-900 shadow btn-shadow flex items-center justify-center space-x-1">
+                            <i class="fa-solid fa-pause"></i>
+                            <span>暫停</span>
+                        </button>
+                        <button onclick="resetTimer()" class="px-4 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-black text-sm border border-slate-900 shadow btn-shadow flex items-center justify-center">
+                            <i class="fa-solid fa-rotate-left"></i>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- TAB 5: STUDENT ROSTER MANAGEMENT -->
+        <section id="tab-students" class="tab-content hidden space-y-6">
+            <div class="bg-white p-6 rounded-3xl border-2 border-slate-300 shadow-lg">
+                <div class="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b-2 border-slate-200">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 flex items-center space-x-2">
+                            <i class="fa-solid fa-address-book text-sky-600"></i>
+                            <span>全班學生名冊管理</span>
+                        </h2>
+                        <p class="text-slate-500 text-sm font-bold mt-1">可單筆編輯或直接複製貼上全班名單整批匯入。</p>
+                    </div>
+
+                    <div class="flex items-center space-x-2 flex-wrap gap-2">
+                        <button onclick="openPasteRosterModal()" class="px-3.5 py-2 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-xl text-xs font-black border border-slate-900 shadow btn-shadow flex items-center space-x-1.5">
+                            <i class="fa-solid fa-paste"></i>
+                            <span>文字批量貼上名單</span>
+                        </button>
+                        <button onclick="openAddStudentModal()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1.5">
+                            <i class="fa-solid fa-user-plus"></i>
+                            <span>新增單筆學生</span>
+                        </button>
+                        <button onclick="exportDataJSON()" class="px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black shadow btn-shadow flex items-center space-x-1.5">
+                            <i class="fa-solid fa-download"></i>
+                            <span>備份 JSON</span>
+                        </button>
+                        <button onclick="triggerImportJSON()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-black border border-slate-300 flex items-center space-x-1.5">
+                            <i class="fa-solid fa-upload"></i>
+                            <span>還原備份</span>
+                        </button>
+                        <input type="file" id="importFileInput" class="hidden" accept=".json" onchange="importDataJSON(event)">
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-900 font-black border-b-2 border-slate-300 text-sm">
+                                <th class="p-3">座號</th>
+                                <th class="p-3">姓名</th>
+                                <th class="p-3">性別</th>
+                                <th class="p-3">幹部職務</th>
+                                <th class="p-3">小老師</th>
+                                <th class="p-3">掃地工作</th>
+                                <th class="p-3 text-right">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentTableBody">
+                            <!-- Dynamic rows rendered here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Tool Focus Fullscreen Modal -->
+    <div id="toolFocusModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border-4 border-slate-900 rounded-3xl p-8 max-w-4xl w-full shadow-2xl relative space-y-6">
+            <button onclick="closeToolFocusModal()" class="absolute top-4 right-5 text-slate-400 hover:text-slate-800 text-3xl font-black">&times;</button>
+            <div id="toolFocusContainer">
+                <!-- Dynamically populated enlarged tool view -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Seat Quick Action & Manual Assign Modal -->
+    <div id="seatActionModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border-2 border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b-2 border-slate-100 pb-3">
+                <h3 id="seatActionTitle" class="text-xl font-black text-slate-900">座位號碼設定</h3>
+                <button onclick="closeSeatActionModal()" class="text-slate-400 hover:text-slate-600 font-black text-lg">&times;</button>
+            </div>
+
+            <input type="hidden" id="targetSeatIndex">
+
+            <div class="space-y-3">
+                <div>
+                    <label class="text-xs font-black text-slate-700 block mb-1">指派特定學生坐此位置:</label>
+                    <select id="seatAssignStudentSelect" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 font-bold text-slate-900 text-sm">
+                        <!-- Student options -->
+                    </select>
+                </div>
+
+                <div class="flex items-center space-x-2 pt-2">
+                    <button onclick="setSeatAsReserved(true)" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-black text-xs border border-slate-300">
+                        <i class="fa-solid fa-chair mr-1"></i> 設為預留空位
+                    </button>
+                    <button onclick="clearSeatAssignment()" class="flex-1 py-2.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl font-black text-xs border border-rose-300">
+                        <i class="fa-solid fa-xmark mr-1"></i> 清空此座位
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex space-x-2 pt-3 border-t border-slate-100">
+                <button onclick="closeSeatActionModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-black text-xs border border-slate-300">取消</button>
+                <button onclick="confirmSeatAssignModal()" class="flex-1 py-2.5 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-xl font-black text-xs border border-slate-900 shadow btn-shadow">確認指派</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Secret Mode Password Modal -->
+    <div id="secretModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border-2 border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b-2 border-slate-100 pb-3">
+                <h3 class="text-xl font-black text-slate-900 flex items-center space-x-2">
+                    <i class="fa-solid fa-user-shield text-amber-500"></i>
+                    <span>導師祕密解鎖權限</span>
+                </h3>
+                <button onclick="closeSecretModal()" class="text-slate-400 hover:text-slate-600 font-black text-lg">&times;</button>
+            </div>
+            <p class="text-xs font-bold text-slate-600">在大屏投影學生模式下，座位約束警示與個人規則會被隱藏。請輸入導師密碼切換模式：</p>
+            <div class="space-y-2">
+                <label class="text-xs font-black text-slate-700">導師 PIN 碼 (預設: 1234):</label>
+                <input type="password" id="secretPinInput" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 font-black text-slate-900 text-center tracking-widest text-lg" placeholder="1234">
+            </div>
+            <div class="flex space-x-2 pt-2">
+                <button onclick="closeSecretModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-black text-sm border border-slate-300">取消</button>
+                <button onclick="verifySecretPin()" class="flex-1 py-2.5 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-xl font-black text-sm border border-slate-900 shadow btn-shadow">解鎖 / 切換</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Seating Constraints Modal -->
+    <div id="constraintsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border-2 border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b-2 border-slate-100 pb-3">
+                <h3 class="text-xl font-black text-slate-900 flex items-center space-x-2">
+                    <i class="fa-solid fa-user-lock text-indigo-600"></i>
+                    <span>排座隱密約束規則 (導師專用)</span>
+                </h3>
+                <button onclick="closeConstraintsModal()" class="text-slate-400 hover:text-slate-600 font-black text-lg">&times;</button>
+            </div>
+
+            <div class="bg-indigo-50/70 p-4 rounded-2xl border border-indigo-200 space-y-3">
+                <div class="space-y-1">
+                    <label class="text-xs font-black text-slate-800">選擇學生 1:</label>
+                    <select id="constraintStudent1" class="w-full bg-white border border-slate-300 rounded-xl p-2 font-bold text-xs text-slate-900"></select>
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-xs font-black text-slate-800">約束類型:</label>
+                    <div class="grid grid-cols-2 gap-2 text-xs font-black">
+                        <label class="flex items-center space-x-1.5 bg-white p-2 rounded-xl border border-slate-200 cursor-pointer">
+                            <input type="radio" name="constraintType" value="apart" checked onchange="toggleConstraintInputMode()">
+                            <span>❌ 禁止相鄰</span>
+                        </label>
+                        <label class="flex items-center space-x-1.5 bg-white p-2 rounded-xl border border-slate-200 cursor-pointer">
+                            <input type="radio" name="constraintType" value="together" onchange="toggleConstraintInputMode()">
+                            <span>🤝 必須連坐</span>
+                        </label>
+                        <label class="flex items-center space-x-1.5 bg-white p-2 rounded-xl border border-slate-200 cursor-pointer">
+                            <input type="radio" name="constraintType" value="must_row" onchange="toggleConstraintInputMode()">
+                            <span>📍 必坐第幾排 (橫)</span>
+                        </label>
+                        <label class="flex items-center space-x-1.5 bg-white p-2 rounded-xl border border-slate-200 cursor-pointer">
+                            <input type="radio" name="constraintType" value="not_row" onchange="toggleConstraintInputMode()">
+                            <span>🚫 不坐第幾排 (橫)</span>
+                        </label>
+                        <label class="flex items-center space-x-1.5 bg-white p-2 rounded-xl border border-slate-200 cursor-pointer col-span-1">
+                            <input type="radio" name="constraintType" value="must_col" onchange="toggleConstraintInputMode()">
+                            <span>📍 必坐第幾列 (直)</span>
+                        </label>
+                        <label class="flex items-center space-x-1.5 bg-white p-2 rounded-xl border border-slate-200 cursor-pointer col-span-1">
+                            <input type="radio" name="constraintType" value="not_col" onchange="toggleConstraintInputMode()">
+                            <span>🚫 不坐第幾列 (直)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="targetStudentContainer" class="space-y-1">
+                    <label class="text-xs font-black text-slate-800">對象學生 2:</label>
+                    <select id="constraintStudent2" class="w-full bg-white border border-slate-300 rounded-xl p-2 font-bold text-xs text-slate-900"></select>
+                </div>
+
+                <div id="rowSelectContainer" class="space-y-1 hidden">
+                    <label class="text-xs font-black text-slate-800">指定排數 (第 1 排為最靠近講台):</label>
+                    <select id="constraintRowNumber" class="w-full bg-white border border-slate-300 rounded-xl p-2 font-bold text-xs text-slate-900">
+                        <option value="1">第 1 排 (前排)</option>
+                        <option value="2">第 2 排</option>
+                        <option value="3">第 3 排</option>
+                        <option value="4">第 4 排</option>
+                        <option value="5">第 5 排</option>
+                        <option value="6">第 6 排</option>
+                    </select>
+                </div>
+
+                <div id="colSelectContainer" class="space-y-1 hidden">
+                    <label class="text-xs font-black text-slate-800">指定列數 (從左至右第幾直列):</label>
+                    <select id="constraintColNumber" class="w-full bg-white border border-slate-300 rounded-xl p-2 font-bold text-xs text-slate-900">
+                        <option value="1">第 1 列 (最左欄)</option>
+                        <option value="2">第 2 列</option>
+                        <option value="3">第 3 列</option>
+                        <option value="4">第 4 列</option>
+                        <option value="5">第 5 列</option>
+                        <option value="6">第 6 列 (最右欄)</option>
+                    </select>
+                </div>
+
+                <button onclick="addConstraintRule()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs border border-slate-900 shadow">
+                    + 新增約束條件
+                </button>
+            </div>
+
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <h4 class="font-black text-sm text-slate-900">已設置約束列表 (<span id="modalConstraintCount">0</span>)</h4>
+                </div>
+                <div id="constraintsList" class="space-y-2 max-h-44 overflow-y-auto"></div>
+            </div>
+
+            <div class="pt-2">
+                <button onclick="closeConstraintsModal()" class="w-full py-2.5 bg-slate-900 text-white rounded-xl font-black text-sm border border-slate-900">完成設定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Role Assign Modal -->
+    <div id="roleAssignModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border-2 border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b-2 border-slate-100 pb-3">
+                <h3 id="roleAssignTitle" class="text-xl font-black text-slate-900">手動指派職務</h3>
+                <button onclick="closeRoleAssignModal()" class="text-slate-400 hover:text-slate-600 font-black text-lg">&times;</button>
+            </div>
+            <input type="hidden" id="targetRoleType">
+            <input type="hidden" id="targetRoleName">
+            <input type="hidden" id="targetRoleSlotIndex">
+
+            <div class="space-y-2">
+                <label class="text-xs font-black text-slate-700">選擇擔任學生:</label>
+                <select id="roleAssignStudentSelect" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 font-black text-slate-900 text-sm"></select>
+            </div>
+
+            <div class="flex space-x-2 pt-2">
+                <button onclick="clearRoleAssign()" class="py-2.5 px-4 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl font-black text-xs border border-rose-300">清除指派</button>
+                <button onclick="closeRoleAssignModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-black text-xs border border-slate-300">取消</button>
+                <button onclick="confirmRoleAssign()" class="flex-1 py-2.5 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-xl font-black text-xs border border-slate-900 shadow btn-shadow">確認指派</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Cadre Modal -->
+    <div id="addCadreModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border-2 border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b-2 border-slate-100 pb-3">
+                <h3 class="text-xl font-black text-slate-900">新增班級幹部職務</h3>
+                <button onclick="closeAddCadreModal()" class="text-slate-400 hover:text-slate-600 font-black text-lg">&times;</button>
+            </div>
+            <div class="space-y-2">
+                <label class="text-xs font-black text-slate-700">幹部職務名稱:</label>
+                <input type="text" id="newCadreTitleInput" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 font-black text-slate-900 text-sm" placeholder="例如: 康樂股長、副班長">
+            </div>
+            <div class="flex space-x-2 pt-2">
+                <button onclick="closeAddCadreModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-black text-xs border border-slate-300">取消</button>
+                <button onclick="saveNewCadre()" class="flex-1 py-2.5 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-xl font-black text-xs border border-slate-900 shadow btn-shadow">新增</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Subject Modal -->
+    <div id="addSubjectModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border-2 border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b-2 border-slate-100 pb-3">
+                <h3 class="text-xl font-black text-slate-900">新增小老師科目</h3>
+                <button onclick="closeAddSubjectModal()" class="text-slate-400 hover:text-slate-600 font-black text-lg">&times;</button>
+            </div>
+            <div class="space-y-2">
+                <label class="text-xs font-black text-slate-700">科目名稱:</label>
+                <input type="text" id="newSubjectNameInput" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 font-black text-slate-900 text-sm" placeholder="例如: 地球科學、全民國防">
+            </div>
+            <div class="space-y-2">
+                <label class="text-xs font-black text-slate-700">需求名額 (人數):</label>
+                <input type="number" id="newSubjectQuotaInput" value="2" min="1" max="5" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 font-black text-slate-900 text-sm">
+            </div>
+            <div class="flex space-x-2 pt-2">
+                <button onclick="closeAddSubjectModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-black text-xs border border-slate-300">取消</button>
+                <button onclick="saveNewSubject()" class="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black text-xs border border-slate-900 shadow btn-shadow">新增</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Duty Assign Modal -->
+    <div id="dutyAssignModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border-2 border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b-2 border-slate-100 pb-3">
+                <h3 id="dutyAssignTitle" class="text-xl font-black text-slate-900">指派掃地人員</h3>
+                <button onclick="closeDutyAssignModal()" class="text-slate-400 hover:text-slate-600 font-black text-lg">&times;</button>
+            </div>
+            <input type="hidden" id="targetDutyId">
+
+            <div class="space-y-2">
+                <label class="text-xs font-black text-slate-700">選擇學生:</label>
+                <select id="dutyAssignStudentSelect" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 font-black text-slate-900 text-sm"></select>
+            </div>
+
+            <div class="flex space-x-2 pt-2">
+                <button onclick="closeDutyAssignModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-black text-xs border border-slate-300">取消</button>
+                <button onclick="confirmDutyAssign()" class="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-black text-xs border border-slate-900 shadow btn-shadow">確認新增</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Duty Modal -->
+    <div id="addDutyModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border-2 border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b-2 border-slate-100 pb-3">
+                <h3 class="text-xl font-black text-slate-900">新增掃地工作區域</h3>
+                <button onclick="closeAddDutyModal()" class="text-slate-400 hover:text-slate-600 font-black text-lg">&times;</button>
+            </div>
+            <div class="space-y-2">
+                <label class="text-xs font-black text-slate-700">工作名稱:</label>
+                <input type="text" id="newDutyName" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 font-black text-slate-900 text-sm" placeholder="例如: 設備組旁女廁鏡面擦拭">
+            </div>
+            <div class="space-y-2">
+                <label class="text-xs font-black text-slate-700">工作類別:</label>
+                <select id="newDutyCategory" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 font-black text-slate-900 text-sm">
+                    <option value="內掃組">內掃組</option>
+                    <option value="外掃區">外掃區</option>
+                    <option value="廁所掃區(設備組旁女廁)">廁所掃區(設備組旁女廁)</option>
+                    <option value="抬餐與機動組">抬餐與機動組</option>
+                </select>
+            </div>
+            <div class="space-y-2">
+                <label class="text-xs font-black text-slate-700">需求人數:</label>
+                <input type="number" id="newDutyRequiredCount" value="1" min="1" max="10" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 font-black text-slate-900 text-sm">
+            </div>
+            <div class="flex space-x-2 pt-2">
+                <button onclick="closeAddDutyModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-black text-xs border border-slate-300">取消</button>
+                <button onclick="saveNewDuty()" class="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-black text-xs border border-slate-900 shadow btn-shadow">新增</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Edit Modal -->
+    <div id="studentEditModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border-2 border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b-2 border-slate-100 pb-3">
+                <h3 id="studentEditTitle" class="text-xl font-black text-slate-900">編輯學生資料</h3>
+                <button onclick="closeStudentEditModal()" class="text-slate-400 hover:text-slate-600 font-black text-lg">&times;</button>
+            </div>
+
+            <input type="hidden" id="editStudentId">
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-xs font-black text-slate-700">座號:</label>
+                    <input type="number" id="editStudentNumber" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-black text-slate-900 text-sm">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs font-black text-slate-700">性別:</label>
+                    <select id="editStudentGender" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-black text-slate-900 text-sm">
+                        <option value="男">男</option>
+                        <option value="女">女</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="space-y-1">
+                <label class="text-xs font-black text-slate-700">姓名:</label>
+                <input type="text" id="editStudentName" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-black text-slate-900 text-sm" placeholder="例如: 陳大明">
+            </div>
+
+            <div class="space-y-1">
+                <label class="text-xs font-black text-slate-700">擔任幹部:</label>
+                <input type="text" id="editStudentCadre" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-black text-slate-900 text-sm" placeholder="例如: 班長 (留空則無)">
+            </div>
+
+            <div class="space-y-1">
+                <label class="text-xs font-black text-slate-700">擔任小老師 (逗點分開):</label>
+                <input type="text" id="editStudentHelpers" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-black text-slate-900 text-sm" placeholder="例如: 國文, 英文">
+            </div>
+
+            <div class="flex space-x-2 pt-2">
+                <button onclick="closeStudentEditModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-black text-xs border border-slate-300">取消</button>
+                <button onclick="saveStudentEdit()" class="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-black text-xs border border-slate-900 shadow btn-shadow">儲存資料</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paste Roster Modal -->
+    <div id="pasteRosterModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border-2 border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b-2 border-slate-100 pb-3">
+                <h3 class="text-xl font-black text-slate-900 flex items-center space-x-2">
+                    <i class="fa-solid fa-paste text-amber-500"></i>
+                    <span>文字批量貼上全班名單</span>
+                </h3>
+                <button onclick="closePasteRosterModal()" class="text-slate-400 hover:text-slate-600 font-black text-lg">&times;</button>
+            </div>
+
+            <p class="text-xs font-bold text-slate-600">
+                請在下方貼上名單，一行一位學生。<br>
+                支援格式：<br>
+                • 純姓名（例如：<code class="bg-slate-100 px-1 font-mono">林子榤</code>）<br>
+                • 座號 姓名（例如：<code class="bg-slate-100 px-1 font-mono">1 林子榤</code>）<br>
+                • 座號 姓名 性別（例如：<code class="bg-slate-100 px-1 font-mono">1 林子榤 男</code>）
+            </p>
+
+            <textarea id="pasteRosterArea" rows="8" class="w-full bg-slate-50 border border-slate-300 rounded-2xl p-3 font-mono text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400" placeholder="1 林子榤 男&#10;2 林承善 男&#10;3 林憲維 男..."></textarea>
+
+            <div class="flex space-x-2 pt-2">
+                <button onclick="closePasteRosterModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-black text-xs border border-slate-300">取消</button>
+                <button onclick="processPastedRoster()" class="flex-1 py-2.5 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-xl font-black text-xs border border-slate-900 shadow btn-shadow">解析並匯入名冊</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRINTABLE AREA -->
+    <div id="printableArea" class="hidden print:block p-6 bg-white text-slate-900 font-sans">
+        <!-- Dynamic print content -->
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <script>
+        const DEFAULT_CADRE_LIST = [
+            '班長', '副班長', '風紀', '學藝', '衛生', '副衛生', 
+            '環保', '公保', '圖書', '事務(總務)', '輔導', '體育', '班代', '合作股長', '廁所負責人'
+        ];
+
+        // 準確對照照片之座位矩陣 (6x6)
+        const PHOTO_SEATING_MATRIX = [
+            [ null,  null,   24,   18,   12,    6 ],
+            [   35,    30,   23,   17,   11,    5 ],
+            [   34,    29,   22,   16,   10,    4 ],
+            [   33,    28,   21,   15,    9,    3 ],
+            [   32,    27,   20,   14,    8,    2 ],
+            [   31,    26,   19,   13,    7,    1 ]
+        ];
+
+        const DEFAULT_HELPER_SUBJECTS = [
+            { name: '國文', count: 2 },
+            { name: '英文', count: 2 },
+            { name: '數學', count: 2 },
+            { name: '物理/化學', count: 2 },
+            { name: '生物/地科', count: 2 },
+            { name: '歷史', count: 2 },
+            { name: '地理', count: 2 },
+            { name: '公民', count: 2 },
+            { name: '音樂', count: 1 },
+            { name: '美術', count: 1 },
+            { name: '生科', count: 1 },
+            { name: '資訊', count: 1 }
+        ];
+
+        const DEFAULT_STUDENTS = [
+            { number: 1, name: "林子榤", gender: "男", cadre: "合作股長", helpers: [] },
+            { number: 2, name: "林承善", gender: "男", cadre: "環保", helpers: [] },
+            { number: 3, name: "林憲維", gender: "男", cadre: "", helpers: ["生物/地科"] },
+            { number: 4, name: "邱康瑞", gender: "男", cadre: "", helpers: [] },
+            { number: 5, name: "柯善哲", gender: "男", cadre: "", helpers: [] },
+            { number: 6, name: "翁平岳", gender: "男", cadre: "風紀", helpers: [] },
+            { number: 7, name: "高亦謙", gender: "男", cadre: "", helpers: [] },
+            { number: 8, name: "陳律穎", gender: "男", cadre: "", helpers: [] },
+            { number: 9, name: "陳敬", gender: "男", cadre: "", helpers: ["生物/地科"] },
+            { number: 10, name: "黃冠誌", gender: "男", cadre: "", helpers: [] },
+            { number: 11, name: "黃富楷", gender: "男", cadre: "", helpers: [] },
+            { number: 12, name: "楊品承", gender: "男", cadre: "", helpers: [] },
+            { number: 13, name: "廖茗崴", gender: "男", cadre: "", helpers: [] },
+            { number: 14, name: "趙科衡", gender: "男", cadre: "圖書", helpers: [] },
+            { number: 15, name: "劉宜睿", gender: "男", cadre: "", helpers: [] },
+            { number: 16, name: "潘聿亮", gender: "男", cadre: "", helpers: [] },
+            { number: 17, name: "蔡宗樺", gender: "男", cadre: "", helpers: ["數學"] },
+            { number: 18, name: "蔡尚恩", gender: "男", cadre: "事務(總務)", helpers: [] },
+            { number: 19, name: "賴安倫", gender: "男", cadre: "", helpers: [] },
+            { number: 20, name: "駱翰楊", gender: "男", cadre: "", helpers: [] },
+            { number: 21, name: "顏泓豈", gender: "男", cadre: "", helpers: [] },
+            { number: 22, name: "江子靜", gender: "女", cadre: "廁所負責人", helpers: [] },
+            { number: 23, name: "林愛耘", gender: "女", cadre: "", helpers: ["英文"] },
+            { number: 24, name: "林臻", gender: "女", cadre: "", helpers: ["英文"] },
+            { number: 26, name: "張嘉恬", gender: "女", cadre: "", helpers: [] },
+            { number: 27, name: "許婕承", gender: "女", cadre: "學藝", helpers: [] },
+            { number: 28, name: "郭晨茵", gender: "女", cadre: "副班長", helpers: [] },
+            { number: 29, name: "陳亭孜", gender: "女", cadre: "班代", helpers: ["物理/化學"] },
+            { number: 30, name: "陳睬蓁", gender: "女", cadre: "輔導", helpers: ["物理/化學"] },
+            { number: 31, name: "曾子珂", gender: "女", cadre: "班長", helpers: [] },
+            { number: 32, name: "曾巧鈞", gender: "女", cadre: "副衛生", helpers: [] },
+            { number: 33, name: "黃潔恩", gender: "女", cadre: "公保", helpers: [] },
+            { number: 34, name: "楊云馨", gender: "女", cadre: "衛生", helpers: [] },
+            { number: 35, name: "蔡岑恩", gender: "女", cadre: "體育", helpers: ["國文"] }
+        ];
+
+        let state = {
+            gridRows: 6,
+            gridCols: 6,
+            perspective: 'teacher',
+            isSecretMode: false,
+            secretPin: '1234',
+            students: [],
+            seatingGrid: [],
+            constraints: [],
+            cleaningDuties: [],
+            cadreTitles: [...DEFAULT_CADRE_LIST],
+            helperSubjects: [...DEFAULT_HELPER_SUBJECTS],
+            pickedHistory: []
+        };
+
+        let selectedSeatIndex = null;
+        let timerInterval = null;
+        let timerSeconds = 300;
+        let logoClickCounter = 0;
+        let logoClickTimer = null;
+
+        window.onload = function() {
+            loadSavedData();
+            if (!state.students || state.students.length === 0 || !state.students.some(s => s.name === "林子榤")) {
+                initDefaultDataset();
+            } else {
+                ensureOfficerCleaningDuties();
+            }
+            renderAllViews();
+        };
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            const target = document.getElementById('tab-' + tabId);
+            if (target) target.classList.remove('hidden');
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-amber-400', 'text-slate-900', 'shadow-md', 'active');
+                btn.classList.add('text-slate-200', 'hover:bg-slate-700');
+            });
+            const activeNav = document.getElementById('nav-' + tabId);
+            if (activeNav) {
+                activeNav.classList.remove('text-slate-200', 'hover:bg-slate-700');
+                activeNav.classList.add('bg-amber-400', 'text-slate-900', 'shadow-md', 'active');
+            }
+        }
+
+        function saveDataToLocal() {
+            try {
+                localStorage.setItem('class_management_120_state_v2', JSON.stringify(state));
+                showToast('資料已成功儲存！', 'success');
+            } catch (e) {
+                console.error('Save failed:', e);
+            }
+        }
+
+        function loadSavedData() {
+            try {
+                const saved = localStorage.getItem('class_management_120_state_v3');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    state = { ...state, ...parsed };
+                    if (!state.cadreTitles || state.cadreTitles.length === 0) {
+                        state.cadreTitles = [...DEFAULT_CADRE_LIST];
+                    }
+                    if (!state.helperSubjects || state.helperSubjects.length === 0) {
+                        state.helperSubjects = [...DEFAULT_HELPER_SUBJECTS];
+                    }
+                } else {
+                    initDefaultDataset();
+                }
+            } catch (e) {
+                console.error('Load failed:', e);
+                initDefaultDataset();
+            }
+        }
+
+        function applyPhotoSeatingMatrix() {
+            state.seatingGrid = [];
+            state.gridRows = 6;
+            state.gridCols = 6;
+
+            for (let r = 0; r < 6; r++) {
+                for (let c = 0; c < 6; c++) {
+                    const num = PHOTO_SEATING_MATRIX[r][c];
+                    let student = num ? state.students.find(s => s.number === num) : null;
+                    state.seatingGrid.push({
+                        seatIndex: r * 6 + c,
+                        row: r,
+                        col: c,
+                        studentId: student ? student.id : null,
+                        isReserved: student === null
+                    });
+                }
+            }
+        }
+
+        function resetToPhotoLayout() {
+            applyPhotoSeatingMatrix();
+            saveDataToLocal();
+            renderSeatingGrid();
+            updateStatsDisplays();
+            showToast('📸 已成功載入照片真實座位表！', 'success');
+        }
+
+        function saveDataToLocal() {
+            try {
+                localStorage.setItem('class_management_120_state_v3', JSON.stringify(state));
+                showToast('資料已成功儲存！', 'success');
+            } catch (e) {
+                console.error('Save failed:', e);
+            }
+        }
+
+        function initDefaultDataset() {
+            state.cadreTitles = [...DEFAULT_CADRE_LIST];
+            state.helperSubjects = [...DEFAULT_HELPER_SUBJECTS];
+
+            state.students = DEFAULT_STUDENTS.map((item) => ({
+                id: 's_' + item.number,
+                number: item.number,
+                name: item.name,
+                gender: item.gender,
+                cadre: item.cadre || '',
+                helpers: item.helpers || []
+            }));
+
+            // 採用照片真實座位進行初始化
+            applyPhotoSeatingMatrix();
+
+            state.cleaningDuties = createDefaultCleaningDataset();
+            state.constraints = [
+                { id: 'c1', student1Id: state.students[0].id, student2Id: state.students[1].id, type: 'apart' }
+            ];
+
+            saveDataToLocal();
+        }
+
+        function createDefaultCleaningDataset() {
+            const getStudentId = (num) => {
+                const found = state.students.find(s => s.number === num);
+                return found ? found.id : null;
+            };
+
+            return [
+                // 內掃組 (11人)
+                { id: 'd_1', name: '衛生股長 (內掃與全班打掃督導)', category: '內掃組', requiredCount: 1, assignedIds: [getStudentId(34)].filter(Boolean), completed: false },
+                { id: 'd_2', name: '黑板、講桌、講台清潔', category: '內掃組', requiredCount: 2, assignedIds: [getStudentId(18), getStudentId(30)].filter(Boolean), completed: false },
+                { id: 'd_3', name: '掃教室地板 (左/右半部)', category: '內掃組', requiredCount: 2, assignedIds: [getStudentId(11), getStudentId(19)].filter(Boolean), completed: false },
+                { id: 'd_4', name: '拖教室地板 (左/右半部)', category: '內掃組', requiredCount: 2, assignedIds: [getStudentId(7), getStudentId(12)].filter(Boolean), completed: false },
+                { id: 'd_5', name: '掃、拖走廊地板', category: '內掃組', requiredCount: 2, assignedIds: [getStudentId(16), getStudentId(21)].filter(Boolean), completed: false },
+                { id: 'd_6', name: '窗戶窗溝與掃具櫃整理', category: '內掃組', requiredCount: 2, assignedIds: [getStudentId(14), getStudentId(27)].filter(Boolean), completed: false },
+
+                // 外掃區 (8人)
+                { id: 'd_7', name: '副衛生股長 (外掃區與樓梯督導)', category: '外掃區', requiredCount: 1, assignedIds: [getStudentId(32)].filter(Boolean), completed: false },
+                { id: 'd_8', name: '忠孝樓 1-3F 樓梯掃拖 (含階梯與扶手)', category: '外掃區', requiredCount: 4, assignedIds: [getStudentId(1), getStudentId(5), getStudentId(6), getStudentId(17)].filter(Boolean), completed: false },
+                { id: 'd_9', name: '忠孝樓 3-5F 樓梯掃拖 (含階梯與扶手)', category: '外掃區', requiredCount: 3, assignedIds: [getStudentId(8), getStudentId(15), getStudentId(24)].filter(Boolean), completed: false },
+
+                // 廁所掃區(設備組旁女廁) (5人)
+                { id: 'd_10', name: '設備組旁女廁 - 洗手台與鏡面擦拭', category: '廁所掃區(設備組旁女廁)', requiredCount: 2, assignedIds: [getStudentId(22), getStudentId(29)].filter(Boolean), completed: false },
+                { id: 'd_11', name: '設備組旁女廁 - 地面刷洗與便器清潔', category: '廁所掃區(設備組旁女廁)', requiredCount: 2, assignedIds: [getStudentId(31), getStudentId(35)].filter(Boolean), completed: false },
+                { id: 'd_12', name: '設備組旁女廁 - 垃圾傾倒與補充品', category: '廁所掃區(設備組旁女廁)', requiredCount: 1, assignedIds: [getStudentId(23)].filter(Boolean), completed: false },
+
+                // 抬餐與機動組 (11人)
+                { id: 'd_13', name: '環保股長 (資源回收與廚餘督導)', category: '抬餐與機動組', requiredCount: 1, assignedIds: [getStudentId(2)].filter(Boolean), completed: false },
+                { id: 'd_14', name: '團膳抬餐與餐台整理', category: '抬餐與機動組', requiredCount: 6, assignedIds: [getStudentId(9), getStudentId(10), getStudentId(13), getStudentId(20), getStudentId(26), getStudentId(33)].filter(Boolean), completed: false },
+                { id: 'd_15', name: '資源回收 - 走廊回收籃與分類', category: '抬餐與機動組', requiredCount: 3, assignedIds: [getStudentId(2), getStudentId(3), getStudentId(4)].filter(Boolean), completed: false },
+                { id: 'd_16', name: '一般垃圾與廚餘桶整理', category: '抬餐與機動組', requiredCount: 2, assignedIds: [getStudentId(28)].filter(Boolean), completed: false }
+            ];
+        }
+
+        function ensureOfficerCleaningDuties() {
+            if (!state.cleaningDuties || state.cleaningDuties.length === 0) {
+                state.cleaningDuties = createDefaultCleaningDataset();
+            }
+        }
+
+        function resetCleaningDutiesToDefault() {
+            state.cleaningDuties = createDefaultCleaningDataset();
+            saveDataToLocal();
+            renderCleaningDuties();
+            showToast('已成功重置並載入最新高一120班工作表！', 'success');
+        }
+
+        function fillRemainingCleaningAssignments() {
+            let assignedStudentIds = new Set();
+            state.cleaningDuties.forEach(d => {
+                d.assignedIds.forEach(id => assignedStudentIds.add(id));
+            });
+
+            // 1. Assign female restroom duties to unassigned female students first
+            state.cleaningDuties.forEach(d => {
+                const isFemaleRestroom = d.category.includes('女廁') || d.name.includes('女廁');
+                if (isFemaleRestroom) {
+                    let needed = d.requiredCount - d.assignedIds.length;
+                    if (needed > 0) {
+                        let unassignedFemales = state.students.filter(s => s.gender === '女' && !assignedStudentIds.has(s.id));
+                        for (let i = unassignedFemales.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [unassignedFemales[i], unassignedFemales[j]] = [unassignedFemales[j], unassignedFemales[i]];
+                        }
+                        for (let i = 0; i < needed && i < unassignedFemales.length; i++) {
+                            d.assignedIds.push(unassignedFemales[i].id);
+                            assignedStudentIds.add(unassignedFemales[i].id);
+                        }
+                    }
+                }
+            });
+
+            // 2. Assign remaining students to other duties
+            let unassignedStudents = state.students.filter(s => !assignedStudentIds.has(s.id));
+            for (let i = unassignedStudents.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [unassignedStudents[i], unassignedStudents[j]] = [unassignedStudents[j], unassignedStudents[i]];
+            }
+
+            let studentIdx = 0;
+            state.cleaningDuties.forEach(d => {
+                const isFemaleRestroom = d.category.includes('女廁') || d.name.includes('女廁');
+                if (!isFemaleRestroom) {
+                    let needed = d.requiredCount - d.assignedIds.length;
+                    for (let i = 0; i < needed && studentIdx < unassignedStudents.length; i++) {
+                        d.assignedIds.push(unassignedStudents[studentIdx].id);
+                        studentIdx++;
+                    }
+                }
+            });
+
+            saveDataToLocal();
+            renderCleaningDuties();
+            showToast('✨ 已補滿掃地工作剩餘空缺！', 'success');
+        }
+
+        function renderAllViews() {
+            renderSeatingGrid();
+            renderCleaningDuties();
+            renderCadresAndHelpers();
+            renderStudentTable();
+            updateSecretModeUI();
+            updateStatsDisplays();
+            updatePickedHistoryUI();
+        }
+
+        function setPerspective(mode) {
+            state.perspective = mode;
+            const container = document.getElementById('seatingGridContainer');
+            const topLectern = document.getElementById('lecternBar');
+            const bottomLectern = document.getElementById('lecternBarBottom');
+
+            const btnTeacher = document.getElementById('btn-persp-teacher');
+            const btnStudent = document.getElementById('btn-persp-student');
+
+            if (mode === 'teacher') {
+                // 老師視角：講台在下面
+                if (container) container.classList.remove('perspective-student');
+                if (topLectern) topLectern.classList.add('hidden');
+                if (bottomLectern) bottomLectern.classList.remove('hidden');
+
+                if (btnTeacher) btnTeacher.className = "px-3 py-1.5 text-xs font-black rounded-lg bg-slate-800 text-white shadow flex items-center space-x-1";
+                if (btnStudent) btnStudent.className = "px-3 py-1.5 text-xs font-black rounded-lg text-slate-700 hover:text-slate-900 flex items-center space-x-1";
+            } else {
+                // 學生視角：講台在上面
+                if (container) container.classList.add('perspective-student');
+                if (topLectern) topLectern.classList.remove('hidden');
+                if (bottomLectern) bottomLectern.classList.add('hidden');
+
+                if (btnStudent) btnStudent.className = "px-3 py-1.5 text-xs font-black rounded-lg bg-slate-800 text-white shadow flex items-center space-x-1";
+                if (btnTeacher) btnTeacher.className = "px-3 py-1.5 text-xs font-black rounded-lg text-slate-700 hover:text-slate-900 flex items-center space-x-1";
+            }
+        }
+
+        function handleLogoClick() {
+            logoClickCounter++;
+            clearTimeout(logoClickTimer);
+            if (logoClickCounter >= 3) {
+                logoClickCounter = 0;
+                toggleSecretModal();
+            } else {
+                logoClickTimer = setTimeout(() => { logoClickCounter = 0; }, 1000);
+            }
+        }
+
+        function toggleSecretModal() {
+            const modal = document.getElementById('secretModal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeSecretModal() {
+            const modal = document.getElementById('secretModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function verifySecretPin() {
+            const input = document.getElementById('secretPinInput').value;
+            if (input === state.secretPin) {
+                state.isSecretMode = !state.isSecretMode;
+                saveDataToLocal();
+                renderAllViews();
+                closeSecretModal();
+                showToast(state.isSecretMode ? '🔓 已解鎖導師祕密模式！Constraints 與警示已顯示。' : '🔒 已回到學生投影模式！約束條件已隱藏。', 'success');
+            } else {
+                showToast('密碼錯誤！(預設密碼為 1234)', 'error');
+            }
+        }
+
+        function updateSecretModeUI() {
+            const badge = document.getElementById('secretBadge');
+            const icon = document.getElementById('secretIcon');
+            const text = document.getElementById('secretText');
+            const triggerBtn = document.getElementById('btnConstraintModalTrigger');
+            const violationLegend = document.getElementById('violationLegend');
+
+            if (state.isSecretMode) {
+                if (badge) badge.className = "bg-amber-400 text-slate-900 text-xs px-2.5 py-1 rounded-full font-black border border-slate-900 flex items-center space-x-1";
+                if (icon) icon.className = "fa-solid fa-lock-open";
+                if (text) text.innerText = "導師祕密模式";
+                if (triggerBtn) triggerBtn.classList.remove('hidden');
+                if (violationLegend) violationLegend.classList.remove('hidden');
+            } else {
+                if (badge) badge.className = "bg-slate-800 text-amber-300 text-xs px-2.5 py-1 rounded-full font-bold border border-amber-400/50 flex items-center space-x-1";
+                if (icon) icon.className = "fa-solid fa-lock";
+                if (text) text.innerText = "學生投影模式";
+                if (triggerBtn) triggerBtn.classList.add('hidden');
+                if (violationLegend) violationLegend.classList.add('hidden');
+            }
+        }
+
+        function updateStatsDisplays() {
+            const rowCount = document.getElementById('rowCountDisplay');
+            if (rowCount) rowCount.innerText = state.gridRows;
+
+            const colCount = document.getElementById('colCountDisplay');
+            if (colCount) colCount.innerText = state.gridCols;
+
+            const maxCapacity = document.getElementById('maxCapacityDisplay');
+            if (maxCapacity) maxCapacity.innerText = state.gridRows * state.gridCols;
+
+            const constraintTag = document.getElementById('constraintCountTag');
+            if (constraintTag) constraintTag.innerText = state.constraints.length;
+
+            const modalConstraintTag = document.getElementById('modalConstraintCount');
+            if (modalConstraintTag) modalConstraintTag.innerText = state.constraints.length;
+
+            let assignedCount = state.seatingGrid.filter(s => s.studentId !== null).length;
+            let reservedCount = state.seatingGrid.filter(s => s.isReserved).length;
+
+            const assignedDisplay = document.getElementById('assignedCountDisplay');
+            if (assignedDisplay) assignedDisplay.innerText = assignedCount;
+
+            const reservedDisplay = document.getElementById('reservedCountDisplay');
+            if (reservedDisplay) reservedDisplay.innerText = reservedCount;
+        }
+
+        function checkAllConstraintViolations() {
+            let violations = [];
+            if (!state.constraints || state.constraints.length === 0) return violations;
+
+            state.constraints.forEach(c => {
+                const seat1Idx = state.seatingGrid.findIndex(s => s.studentId === c.student1Id);
+                if (seat1Idx === -1) return;
+
+                const seat1 = state.seatingGrid[seat1Idx];
+
+                if (c.type === 'together' || c.type === 'apart') {
+                    const seat2Idx = state.seatingGrid.findIndex(s => s.studentId === c.student2Id);
+                    if (seat2Idx === -1) return;
+                    const seat2 = state.seatingGrid[seat2Idx];
+
+                    const isAdjacent = (seat1.row === seat2.row && Math.abs(seat1.col - seat2.col) === 1) ||
+                                       (seat1.col === seat2.col && Math.abs(seat1.row - seat2.row) === 1);
+
+                    if (c.type === 'together' && !isAdjacent) {
+                        violations.push({ seatIndex1: seat1Idx, seatIndex2: seat2Idx });
+                    } else if (c.type === 'apart' && isAdjacent) {
+                        violations.push({ seatIndex1: seat1Idx, seatIndex2: seat2Idx });
+                    }
+                } else if (c.type === 'must_row') {
+                    const targetRow = parseInt(c.rowNumber) - 1;
+                    if (seat1.row !== targetRow) {
+                        violations.push({ seatIndex1: seat1Idx, seatIndex2: null });
+                    }
+                } else if (c.type === 'not_row') {
+                    const forbiddenRow = parseInt(c.rowNumber) - 1;
+                    if (seat1.row === forbiddenRow) {
+                        violations.push({ seatIndex1: seat1Idx, seatIndex2: null });
+                    }
+                } else if (c.type === 'must_col') {
+                    const targetCol = parseInt(c.colNumber) - 1;
+                    if (seat1.col !== targetCol) {
+                        violations.push({ seatIndex1: seat1Idx, seatIndex2: null });
+                    }
+                } else if (c.type === 'not_col') {
+                    const forbiddenCol = parseInt(c.colNumber) - 1;
+                    if (seat1.col === forbiddenCol) {
+                        violations.push({ seatIndex1: seat1Idx, seatIndex2: null });
+                    }
+                }
+            });
+
+            return violations;
+        }
+
+        function renderSeatingGrid() {
+            const gridEl = document.getElementById('seatingGrid');
+            if (!gridEl) return;
+
+            gridEl.style.gridTemplateColumns = `repeat(${state.gridCols}, minmax(0, 1fr))`;
+            gridEl.innerHTML = '';
+
+            const violations = state.isSecretMode ? checkAllConstraintViolations() : [];
+
+            state.seatingGrid.forEach((seat, idx) => {
+                const student = state.students.find(s => s.id === seat.studentId);
+                const isSelected = selectedSeatIndex === idx;
+                const hasViolation = violations.some(v => v.seatIndex1 === idx || v.seatIndex2 === idx);
+
+                const seatCard = document.createElement('div');
+                seatCard.className = `seat-card dopamine-card relative rounded-2xl p-3 flex flex-col justify-between border-2 transition cursor-pointer select-none min-h-[110px] ${
+                    isSelected ? 'ring-4 ring-amber-400 border-amber-500 bg-amber-50 z-10' :
+                    hasViolation ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-300' :
+                    seat.isReserved ? 'bg-slate-100/90 border-dashed border-slate-400 text-slate-400' :
+                    student ? (student.gender === '男' ? 'bg-sky-50/90 border-sky-300 hover:border-sky-500' : 'bg-rose-50/90 border-rose-300 hover:border-rose-500') :
+                    'bg-slate-50 border-slate-300'
+                }`;
+
+                seatCard.onclick = () => handleSeatClick(idx);
+
+                if (seat.isReserved) {
+                    seatCard.innerHTML = `
+                        <div class="seat-content flex flex-col items-center justify-center h-full text-slate-400 py-3">
+                            <i class="fa-solid fa-chair text-2xl mb-1"></i>
+                            <span class="text-xs font-black">預留空位</span>
+                        </div>
+                    `;
+                } else if (student) {
+                    const cadreBadge = student.cadre ? `<span class="bg-amber-300 text-slate-900 text-xs px-2 py-0.5 rounded-lg font-black border border-slate-800">${student.cadre}</span>` : '';
+                    const helperBadge = student.helpers && student.helpers.length > 0 ? `<span class="bg-emerald-300 text-slate-900 text-xs px-2 py-0.5 rounded-lg font-black border border-slate-800">${student.helpers.join('/')}</span>` : '';
+                    
+                    seatCard.innerHTML = `
+                        <div class="seat-content flex flex-col justify-between h-full">
+                            <div class="flex items-center justify-between border-b border-slate-200/80 pb-1">
+                                <span class="bg-slate-800 text-white text-xs px-2 py-0.5 rounded-full font-black">#${student.number}</span>
+                                <span class="text-xs font-black ${student.gender === '男' ? 'text-sky-600' : 'text-rose-600'}">${student.gender}</span>
+                            </div>
+                            <div class="my-1 text-center">
+                                <div class="font-black text-slate-900 text-xl sm:text-2xl tracking-wider">${student.name}</div>
+                            </div>
+                            <div class="flex flex-wrap gap-1 justify-center">
+                                ${cadreBadge}
+                                ${helperBadge}
+                            </div>
+                            ${hasViolation ? `<div class="absolute -top-2.5 -right-2.5 bg-rose-600 text-white border-2 border-slate-900 rounded-full w-6 h-6 flex items-center justify-center text-xs shadow font-black" title="違反導師約束!">!</div>` : ''}
+                        </div>
+                    `;
+                } else {
+                    seatCard.innerHTML = `
+                        <div class="seat-content flex flex-col items-center justify-center h-full text-slate-400">
+                            <span class="text-sm font-black">+ 點擊設定</span>
+                        </div>
+                    `;
+                }
+
+                gridEl.appendChild(seatCard);
+            });
+        }
+
+        function highlightSeats(type) {
+            const cards = document.querySelectorAll('#seatingGrid .seat-card');
+            state.seatingGrid.forEach((seat, idx) => {
+                const card = cards[idx];
+                if (!card) return;
+                const student = state.students.find(s => s.id === seat.studentId);
+                
+                let match = false;
+                if (type === 'all') match = true;
+                else if (type === 'male' && student && student.gender === '男') match = true;
+                else if (type === 'female' && student && student.gender === '女') match = true;
+                else if (type === 'cadres' && student && student.cadre && student.cadre.trim() !== '') match = true;
+                else if (type === 'helpers' && student && student.helpers && student.helpers.length > 0) match = true;
+
+                if (match) {
+                    card.style.opacity = '1';
+                    card.style.transform = 'scale(1)';
+                    card.style.filter = 'none';
+                } else {
+                    card.style.opacity = '0.35';
+                    card.style.transform = 'scale(0.96)';
+                    card.style.filter = 'grayscale(60%)';
+                }
+            });
+        }
+
+        function handleSeatClick(idx) {
+            if (selectedSeatIndex === null) {
+                selectedSeatIndex = idx;
+                renderSeatingGrid();
+                openSeatActionModal(idx);
+            } else if (selectedSeatIndex === idx) {
+                selectedSeatIndex = null;
+                renderSeatingGrid();
+            } else {
+                let tempStudentId = state.seatingGrid[selectedSeatIndex].studentId;
+                let tempReserved = state.seatingGrid[selectedSeatIndex].isReserved;
+
+                state.seatingGrid[selectedSeatIndex].studentId = state.seatingGrid[idx].studentId;
+                state.seatingGrid[selectedSeatIndex].isReserved = state.seatingGrid[idx].isReserved;
+
+                state.seatingGrid[idx].studentId = tempStudentId;
+                state.seatingGrid[idx].isReserved = tempReserved;
+
+                selectedSeatIndex = null;
+                saveDataToLocal();
+                renderSeatingGrid();
+                showToast('已完成座位位置對調！', 'success');
+            }
+        }
+
+        function openSeatActionModal(seatIdx) {
+            const seat = state.seatingGrid[seatIdx];
+            if (!seat) return;
+
+            document.getElementById('targetSeatIndex').value = seatIdx;
+            const rowNum = seat.row + 1;
+            const colNum = seat.col + 1;
+            document.getElementById('seatActionTitle').innerText = `調整第 ${rowNum} 排，第 ${colNum} 列座位`;
+
+            const selectEl = document.getElementById('seatAssignStudentSelect');
+            selectEl.innerHTML = '<option value="">-- (無指派 / 空位) --</option>';
+
+            state.students.forEach(s => {
+                const isAssignedElsewhere = state.seatingGrid.some((st, i) => i !== seatIdx && st.studentId === s.id);
+                selectEl.innerHTML += `<option value="${s.id}" ${seat.studentId === s.id ? 'selected' : ''}>#${s.number} ${s.name} (${s.gender})${isAssignedElsewhere ? ' - 在其他位置' : ''}</option>`;
+            });
+
+            document.getElementById('seatActionModal').classList.remove('hidden');
+        }
+
+        function closeSeatActionModal() {
+            selectedSeatIndex = null;
+            document.getElementById('seatActionModal').classList.add('hidden');
+            renderSeatingGrid();
+        }
+
+        function confirmSeatAssignModal() {
+            const seatIdx = parseInt(document.getElementById('targetSeatIndex').value);
+            const studentId = document.getElementById('seatAssignStudentSelect').value;
+
+            if (seatIdx >= 0 && seatIdx < state.seatingGrid.length) {
+                if (studentId) {
+                    state.seatingGrid.forEach((st, i) => {
+                        if (i !== seatIdx && st.studentId === studentId) {
+                            st.studentId = null;
+                            st.isReserved = false;
+                        }
+                    });
+                    state.seatingGrid[seatIdx].studentId = studentId;
+                    state.seatingGrid[seatIdx].isReserved = false;
+                } else {
+                    state.seatingGrid[seatIdx].studentId = null;
+                }
+            }
+
+            saveDataToLocal();
+            closeSeatActionModal();
+            showToast('座位已更動！', 'success');
+        }
+
+        function setSeatAsReserved(reserved = true) {
+            const seatIdx = parseInt(document.getElementById('targetSeatIndex').value);
+            if (seatIdx >= 0 && seatIdx < state.seatingGrid.length) {
+                state.seatingGrid[seatIdx].studentId = null;
+                state.seatingGrid[seatIdx].isReserved = reserved;
+            }
+            saveDataToLocal();
+            closeSeatActionModal();
+            showToast('已更新為預留空位', 'info');
+        }
+
+        function clearSeatAssignment() {
+            const seatIdx = parseInt(document.getElementById('targetSeatIndex').value);
+            if (seatIdx >= 0 && seatIdx < state.seatingGrid.length) {
+                state.seatingGrid[seatIdx].studentId = null;
+                state.seatingGrid[seatIdx].isReserved = false;
+            }
+            saveDataToLocal();
+            closeSeatActionModal();
+            showToast('已清空此座位', 'info');
+        }
+
+        function adjustGridDimensions(deltaRows, deltaCols) {
+            let newRows = state.gridRows + deltaRows;
+            let newCols = state.gridCols + deltaCols;
+
+            if (newRows < 3 || newRows > 10) return;
+            if (newCols < 3 || newCols > 10) return;
+
+            state.gridRows = newRows;
+            state.gridCols = newCols;
+
+            let oldGrid = [...state.seatingGrid];
+            state.seatingGrid = [];
+
+            let totalSeats = newRows * newCols;
+            for (let i = 0; i < totalSeats; i++) {
+                let r = Math.floor(i / newCols);
+                let c = i % newCols;
+                let oldSeat = oldGrid.find(s => s.row === r && s.col === c);
+
+                state.seatingGrid.push({
+                    seatIndex: i,
+                    row: r,
+                    col: c,
+                    studentId: oldSeat ? oldSeat.studentId : null,
+                    isReserved: oldSeat ? oldSeat.isReserved : false
+                });
+            }
+
+            saveDataToLocal();
+            renderAllViews();
+        }
+
+        function randomizeSeats() {
+            let studentIds = state.students.map(s => s.id);
+            for (let i = studentIds.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [studentIds[i], studentIds[j]] = [studentIds[j], studentIds[i]];
+            }
+
+            let sIdx = 0;
+            state.seatingGrid.forEach(seat => {
+                if (sIdx < studentIds.length) {
+                    seat.studentId = studentIds[sIdx];
+                    seat.isReserved = false;
+                    sIdx++;
+                } else {
+                    seat.studentId = null;
+                    seat.isReserved = true;
+                }
+            });
+
+            saveDataToLocal();
+            renderSeatingGrid();
+            showToast('🎲 已完成全班隨機重排座位！', 'success');
+        }
+
+        function clearAllSeats() {
+            state.seatingGrid.forEach(seat => {
+                seat.studentId = null;
+                seat.isReserved = true;
+            });
+            saveDataToLocal();
+            renderSeatingGrid();
+            showToast('已清空所有座位與分配！');
+        }
+
+        function clearAllCleaningAssignments() {
+            state.cleaningDuties.forEach(d => {
+                d.assignedIds = [];
+                d.completed = false;
+            });
+            saveDataToLocal();
+            renderCleaningDuties();
+            showToast('已清空所有掃地人員分配！', 'info');
+        }
+
+        function renderCleaningDuties() {
+            const container = document.getElementById('cleaningDutiesGrid');
+            if (!container) return;
+            container.innerHTML = '';
+
+            state.cleaningDuties.forEach(duty => {
+                const assignedStudents = state.students.filter(s => duty.assignedIds.includes(s.id));
+
+                const dutyCard = document.createElement('div');
+                dutyCard.className = `bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-sm ${duty.completed ? 'border-emerald-500 bg-emerald-50/40' : 'border-slate-300'}`;
+
+                const categoryBadgeClass = duty.category === '內掃組' ? 'bg-sky-200 text-sky-900' : 
+                                           (duty.category === '外掃區' ? 'bg-emerald-200 text-emerald-900' : 
+                                           (duty.category === '廁所掃區(設備組旁女廁)' ? 'bg-purple-200 text-purple-900' : 
+                                           (duty.category === '抬餐與機動組' ? 'bg-amber-200 text-amber-900' : 'bg-slate-200 text-slate-900')));
+
+                dutyCard.innerHTML = `
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-black px-2.5 py-1 rounded-lg border border-slate-300 ${categoryBadgeClass}">
+                                ${duty.category}
+                            </span>
+                            <button onclick="deleteDuty('${duty.id}')" class="text-slate-400 hover:text-rose-600 text-xs font-bold p-1 no-print"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+
+                        <h4 class="font-black text-slate-900 text-lg mb-1">${duty.name}</h4>
+                        <p class="text-xs font-bold text-slate-500 mb-3">需求人數: ${assignedStudents.length} / ${duty.requiredCount} 人</p>
+
+                        <div class="space-y-1.5 mb-4">
+                            ${assignedStudents.map(s => `
+                                <div class="bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs font-black flex items-center justify-between">
+                                    <span class="text-slate-900">#${s.number} ${s.name} (${s.gender})</span>
+                                    <button onclick="unassignStudentFromDuty('${duty.id}', '${s.id}')" class="text-rose-600 hover:text-rose-800 text-xs font-black no-print">&times; 移除</button>
+                                </div>
+                            `).join('')}
+                            ${assignedStudents.length < duty.requiredCount ? `<div class="text-xs font-bold text-slate-400 italic text-center py-1">尚缺少 ${duty.requiredCount - assignedStudents.length} 人</div>` : ''}
+                        </div>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-between no-print">
+                        <button onclick="openAssignDutyStudentModal('${duty.id}')" class="text-xs text-sky-700 hover:text-sky-900 font-black flex items-center space-x-1">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>手動指定</span>
+                        </button>
+                        
+                        <button onclick="toggleDutyCompleted('${duty.id}')" class="px-2.5 py-1 rounded-lg text-xs font-black border transition flex items-center space-x-1 ${duty.completed ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200'}">
+                            <i class="fa-solid fa-check"></i>
+                            <span>${duty.completed ? '打掃完成' : '未打卡'}</span>
+                        </button>
+                    </div>
+                `;
+
+                container.appendChild(dutyCard);
+            });
+        }
+
+        function randomAssignCleaning(overwrite = false) {
+            if (overwrite) {
+                state.cleaningDuties.forEach(d => d.assignedIds = []);
+            }
+            fillRemainingCleaningAssignments();
+        }
+
+        function toggleDutyCompleted(dutyId) {
+            const duty = state.cleaningDuties.find(d => d.id === dutyId);
+            if (duty) {
+                duty.completed = !duty.completed;
+                saveDataToLocal();
+                renderCleaningDuties();
+            }
+        }
+
+        function renderCadresAndHelpers() {
+            const officersList = document.getElementById('officersList');
+            const helpersList = document.getElementById('helpersList');
+
+            if (!state.cadreTitles) state.cadreTitles = [...DEFAULT_CADRE_LIST];
+            if (!state.helperSubjects) state.helperSubjects = [...DEFAULT_HELPER_SUBJECTS];
+
+            const cadreBadge = document.getElementById('cadreCountBadge');
+            if (cadreBadge) cadreBadge.innerText = `${state.cadreTitles.length} 項職務`;
+
+            const helperBadge = document.getElementById('helperCountBadge');
+            if (helperBadge) helperBadge.innerText = `${state.helperSubjects.length} 科目`;
+
+            if (officersList) officersList.innerHTML = '';
+            if (helpersList) helpersList.innerHTML = '';
+
+            if (officersList) {
+                state.cadreTitles.forEach(cadreName => {
+                    const assignedStudent = state.students.find(s => s.cadre === cadreName);
+                    
+                    officersList.innerHTML += `
+                        <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <span class="bg-amber-300 text-slate-900 text-xs px-2.5 py-1 rounded-lg font-black border border-slate-800">${cadreName}</span>
+                                <span class="font-black text-slate-900 text-base">
+                                    ${assignedStudent ? `#${assignedStudent.number} ${assignedStudent.name}` : '<span class="text-slate-400 font-extrabold text-xs">未指派</span>'}
+                                </span>
+                            </div>
+                            <div class="flex items-center space-x-1 no-print">
+                                <button onclick="openRoleAssignModal('cadre', '${cadreName}')" class="px-2.5 py-1 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-lg text-xs font-black border border-slate-800 shadow-sm">
+                                    ${assignedStudent ? '更換' : '指派'}
+                                </button>
+                                <button onclick="deleteCadreRole('${cadreName}')" class="text-slate-400 hover:text-rose-600 text-xs p-1 font-black" title="刪除此幹部"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            if (helpersList) {
+                state.helperSubjects.forEach(subj => {
+                    const count = subj.count || 1;
+                    const assignedStudents = state.students.filter(s => s.helpers && s.helpers.includes(subj.name));
+
+                    let slotsHtml = '';
+                    for (let i = 0; i < count; i++) {
+                        const st = assignedStudents[i];
+                        slotsHtml += `
+                            <div class="flex items-center justify-between text-xs font-black bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                <span class="text-slate-800">
+                                    ${st ? `#${st.number} ${st.name}` : `<span class="text-slate-400 font-extrabold">名額 ${i + 1} (未指定)</span>`}
+                                </span>
+                                <button onclick="openRoleAssignModal('helper', '${subj.name}', ${i})" class="px-2 py-0.5 bg-sky-600 hover:bg-sky-700 text-white rounded text-xs font-black shadow-sm no-print">
+                                    ${st ? '更換' : '指定'}
+                                </button>
+                            </div>
+                        `;
+                    }
+
+                    helpersList.innerHTML += `
+                        <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                            <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                                <div class="flex items-center space-x-2">
+                                    <span class="bg-sky-200 text-slate-900 text-xs px-2.5 py-1 rounded-lg font-black border border-slate-800">${subj.name}</span>
+                                    <span class="text-xs font-extrabold text-slate-500">需求: ${count} 人</span>
+                                </div>
+                                <button onclick="deleteSubjectRole('${subj.name}')" class="text-slate-400 hover:text-rose-600 text-xs p-1 font-black no-print" title="刪除此科目"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                            <div class="space-y-1.5">
+                                ${slotsHtml}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+        }
+
+        function clearAllCadresAndHelpers() {
+            state.students.forEach(s => {
+                s.cadre = '';
+                s.helpers = [];
+            });
+            saveDataToLocal();
+            renderAllViews();
+            showToast('已清空所有幹部與小老師資料！', 'info');
+        }
+
+        function fillRemainingCadresAndHelpers() {
+            let unassignedStudents = state.students.filter(s => !s.cadre && (!s.helpers || s.helpers.length === 0));
+            let shuffled = [...unassignedStudents].sort(() => Math.random() - 0.5);
+            let sIdx = 0;
+
+            state.cadreTitles.forEach(cadreName => {
+                const curr = state.students.find(s => s.cadre === cadreName);
+                if (!curr && sIdx < shuffled.length) {
+                    shuffled[sIdx].cadre = cadreName;
+                    sIdx++;
+                }
+            });
+
+            state.helperSubjects.forEach(subj => {
+                const count = subj.count || 1;
+                const assigned = state.students.filter(s => s.helpers && s.helpers.includes(subj.name));
+                const needed = count - assigned.length;
+
+                for (let i = 0; i < needed; i++) {
+                    if (sIdx < shuffled.length) {
+                        if (!shuffled[sIdx].helpers) shuffled[sIdx].helpers = [];
+                        shuffled[sIdx].helpers.push(subj.name);
+                        sIdx++;
+                    } else {
+                        let randIndex = Math.floor(Math.random() * state.students.length);
+                        let randomStudent = state.students[randIndex];
+                        if (!randomStudent.helpers) randomStudent.helpers = [];
+                        if (!randomStudent.helpers.includes(subj.name)) {
+                            randomStudent.helpers.push(subj.name);
+                        }
+                    }
+                }
+            });
+
+            saveDataToLocal();
+            renderAllViews();
+            showToast('✨ 已保留手動幹部小老師，並隨機補滿空缺！', 'success');
+        }
+
+        function randomAssignCadresAndHelpers(overwrite = false) {
+            if (overwrite) {
+                clearAllCadresAndHelpers();
+            }
+            fillRemainingCadresAndHelpers();
+        }
+
+        async function exportElementAsPDF(elementId, filename, orientation = 'portrait') {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            showToast('📄 正在生成高解析 PDF 檔案...', 'info');
+
+            try {
+                const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ orientation: orientation, unit: 'mm', format: 'a4' });
+
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const imgWidth = pdfWidth - 20;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                pdf.addImage(imgData, 'JPEG', 10, 10, imgWidth, imgHeight);
+                pdf.save(`${filename}_${new Date().toISOString().slice(0,10)}.pdf`);
+                showToast('✅ PDF 匯出成功！', 'success');
+            } catch (e) {
+                console.error(e);
+                showToast('❌ PDF 匯出失敗', 'error');
+            }
+        }
+
+        async function exportElementAsPNG(elementId, filename) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            showToast('🖼️ 正在處理高解析圖片...', 'info');
+
+            try {
+                const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+                const link = document.createElement('a');
+                link.download = `${filename}_${new Date().toISOString().slice(0,10)}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                showToast('✅ PNG 圖片匯出成功！', 'success');
+            } catch (e) {
+                console.error(e);
+                showToast('❌ 圖片匯出失敗', 'error');
+            }
+        }
+
+        function exportSeatingPDF() { exportElementAsPDF('seatingRenderContainer', '高一120班_座位表', 'landscape'); }
+        function exportSeatingPNG() { exportElementAsPNG('seatingRenderContainer', '高一120班_座位表'); }
+
+        function exportCleaningPDF() { exportElementAsPDF('cleaningRenderContainer', '高一120班_掃地工作分配表', 'portrait'); }
+        function exportCleaningPNG() { exportElementAsPNG('cleaningRenderContainer', '高一120班_掃地工作分配表'); }
+
+        function exportCadresPDF() { exportElementAsPDF('cadresRenderContainer', '高一120班_幹部與小老師名冊', 'portrait'); }
+        function exportCadresPNG() { exportElementAsPNG('cadresRenderContainer', '高一120班_幹部與小老師名冊'); }
+
+        function triggerPrint(printableHtml) {
+            const printArea = document.getElementById('printableArea');
+            if (!printArea) return;
+            printArea.innerHTML = printableHtml;
+            setTimeout(() => { window.print(); }, 200);
+        }
+
+        function printSeatingChart() {
+            let cols = state.gridCols;
+            let gridHtml = '';
+            
+            state.seatingGrid.forEach(seat => {
+                const student = state.students.find(s => s.id === seat.studentId);
+                if (seat.isReserved) {
+                    gridHtml += `<div class="border border-gray-300 rounded p-2 text-center text-gray-400 bg-gray-50 min-h-[60px] flex items-center justify-center text-xs">預留位</div>`;
+                } else if (student) {
+                    const cadreBadge = student.cadre ? `<span class="bg-amber-100 text-[10px] px-1 py-0.5 rounded font-bold border border-slate-700">${student.cadre}</span>` : '';
+                    const helperBadge = student.helpers && student.helpers.length ? `<span class="bg-sky-100 text-[10px] px-1 py-0.5 rounded font-bold border border-slate-700">${student.helpers.join('/')}</span>` : '';
+                    gridHtml += `
+                        <div class="border border-slate-900 rounded p-2 text-center flex flex-col justify-between min-h-[60px] bg-white">
+                            <div class="flex justify-between items-center text-[10px] text-gray-600 font-bold border-b pb-0.5">
+                                <span>#${student.number}</span>
+                                <span>${student.gender}</span>
+                            </div>
+                            <div class="font-black text-base text-slate-900 my-1">${student.name}</div>
+                            <div class="flex flex-wrap gap-0.5 justify-center">
+                                ${cadreBadge}
+                                ${helperBadge}
+                            </div>
+                        </div>`;
+                } else {
+                    gridHtml += `<div class="border border-dashed border-gray-300 rounded p-2 text-center text-gray-300 min-h-[60px] flex items-center justify-center text-xs">未安排</div>`;
+                }
+            });
+
+            const isTeacherPersp = state.perspective === 'teacher';
+            const blackboardHtml = `
+                <div class="bg-slate-900 text-white font-black text-center py-2 px-4 rounded my-3 text-xs tracking-widest border border-black">
+                    【 講 台 / 黑 板 ${isTeacherPersp ? '(導師視角 - 講台在下)' : '(學生面向視角 - 講台在上)'} 】
+                </div>`;
+
+            const printHtml = `
+                <div class="text-center mb-4 border-b-2 border-slate-900 pb-2">
+                    <h1 class="text-2xl font-black">高一 120 班 班級座位表</h1>
+                    <p class="text-xs font-bold text-slate-600 mt-1">列印時間：${new Date().toLocaleDateString('zh-TW')} | 總人數：${state.students.length} 人</p>
+                </div>
+                ${!isTeacherPersp ? blackboardHtml : ''}
+                <div class="grid gap-2 my-2" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">
+                    ${gridHtml}
+                </div>
+                ${isTeacherPersp ? blackboardHtml : ''}
+            `;
+
+            triggerPrint(printHtml);
+        }
+
+        function printCleaningDuties() {
+            let dutiesHtml = '';
+            state.cleaningDuties.forEach(duty => {
+                const assigned = state.students.filter(s => duty.assignedIds.includes(s.id));
+                const assignedNames = assigned.map(s => `#${s.number} ${s.name}`).join('、 ') || '尚未指定';
+
+                dutiesHtml += `
+                    <tr class="border-b border-slate-300">
+                        <td class="p-2 font-bold">${duty.category}</td>
+                        <td class="p-2 font-black text-slate-900">${duty.name}</td>
+                        <td class="p-2 text-center font-bold">${assigned.length} / ${duty.requiredCount} 人</td>
+                        <td class="p-2 font-extrabold text-slate-800">${assignedNames}</td>
+                    </tr>`;
+            });
+
+            const printHtml = `
+                <div class="text-center mb-6 border-b-2 border-slate-900 pb-3">
+                    <h1 class="text-2xl font-black">高一 120 班 掃地工作分配表</h1>
+                    <p class="text-xs font-bold text-slate-600 mt-1">列印時間：${new Date().toLocaleDateString('zh-TW')}</p>
+                </div>
+                <table class="w-full text-left text-xs border border-slate-900">
+                    <thead class="bg-slate-100 font-black border-b border-slate-900">
+                        <tr>
+                            <th class="p-2 w-1/4">工作類別</th>
+                            <th class="p-2 w-1/4">工作項目</th>
+                            <th class="p-2 w-1/6 text-center">人數</th>
+                            <th class="p-2">負責學生</th>
+                        </tr>
+                    </thead>
+                    <tbody>${dutiesHtml}</tbody>
+                </table>
+            `;
+
+            triggerPrint(printHtml);
+        }
+
+        function printCadresAndHelpers() {
+            let cadreRows = '';
+            (state.cadreTitles || DEFAULT_CADRE_LIST).forEach(cadreName => {
+                const st = state.students.find(s => s.cadre === cadreName);
+                cadreRows += `
+                    <tr class="border-b border-slate-200">
+                        <td class="p-2 font-black">${cadreName}</td>
+                        <td class="p-2 font-bold">${st ? `#${st.number} ${st.name}` : '<span class="text-gray-400">未指派</span>'}</td>
+                    </tr>`;
+            });
+
+            let helperRows = '';
+            (state.helperSubjects || DEFAULT_HELPER_SUBJECTS).forEach(subj => {
+                const count = subj.count || 1;
+                const assigned = state.students.filter(s => s.helpers && s.helpers.includes(subj.name));
+                const assignedNames = assigned.map(s => `#${s.number} ${s.name}`).join('、 ') || '<span class="text-gray-400">未指派</span>';
+                
+                helperRows += `
+                    <tr class="border-b border-slate-200">
+                        <td class="p-2 font-black">${subj.name} (${count}人)</td>
+                        <td class="p-2 font-bold">${assignedNames}</td>
+                    </tr>`;
+            });
+
+            const printHtml = `
+                <div class="text-center mb-6 border-b-2 border-slate-900 pb-3">
+                    <h1 class="text-2xl font-black">高一 120 班 班級幹部與各科小老師名冊</h1>
+                    <p class="text-xs font-bold text-slate-600 mt-1">列印時間：${new Date().toLocaleDateString('zh-TW')}</p>
+                </div>
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <h2 class="text-sm font-black bg-amber-100 border border-slate-900 p-2 rounded-t">班級主要幹部</h2>
+                        <table class="w-full text-left text-xs border border-t-0 border-slate-900">
+                            <thead class="bg-gray-100 font-black border-b border-slate-900">
+                                <tr><th class="p-2 w-1/2">職務</th><th class="p-2">擔任學生</th></tr>
+                            </thead>
+                            <tbody>${cadreRows}</tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <h2 class="text-sm font-black bg-sky-100 border border-slate-900 p-2 rounded-t">各科小老師名冊</h2>
+                        <table class="w-full text-left text-xs border border-t-0 border-slate-900">
+                            <thead class="bg-gray-100 font-black border-b border-slate-900">
+                                <tr><th class="p-2 w-1/2">科目</th><th class="p-2">擔任學生</th></tr>
+                            </thead>
+                            <tbody>${helperRows}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            triggerPrint(printHtml);
+        }
+
+        function downloadCSV(filename, csvContent) {
+            const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            showToast(`已成功匯出：${filename}`, 'success');
+        }
+
+        function exportSeatingCSV() {
+            let csv = "排(橫),列(直),座號,姓名,性別,幹部職務,小老師科目,是否預留\n";
+            state.seatingGrid.forEach(seat => {
+                const student = state.students.find(s => s.id === seat.studentId);
+                const row = seat.row + 1;
+                const col = seat.col + 1;
+                if (student) {
+                    const cadres = student.cadre || '';
+                    const helpers = (student.helpers || []).join(';');
+                    csv += `${row},${col},${student.number},"${student.name}",${student.gender},"${cadres}","${helpers}",否\n`;
+                } else {
+                    csv += `${row},${col},,,"","",${seat.isReserved ? '是' : '否'}\n`;
+                }
+            });
+            downloadCSV(`高一120班_座位表_${new Date().toISOString().slice(0, 10)}.csv`, csv);
+        }
+
+        function exportCleaningCSV() {
+            let csv = "工作類別,工作項目,需求人數,已分配人數,負責學生座號與姓名\n";
+            state.cleaningDuties.forEach(duty => {
+                const assigned = state.students.filter(s => duty.assignedIds.includes(s.id));
+                const assignedNames = assigned.map(s => `#${s.number} ${s.name}`).join('; ');
+                csv += `"${duty.category}","${duty.name}",${duty.requiredCount},${assigned.length},"${assignedNames}"\n`;
+            });
+            downloadCSV(`高一120班_掃地工作分配表_${new Date().toISOString().slice(0, 10)}.csv`, csv);
+        }
+
+        function exportCadresCSV() {
+            let csv = "【班級幹部】\n職務,座號,姓名\n";
+            (state.cadreTitles || DEFAULT_CADRE_LIST).forEach(cadreName => {
+                const st = state.students.find(s => s.cadre === cadreName);
+                csv += `"${cadreName}",${st ? st.number : ''},"${st ? st.name : ''}"\n`;
+            });
+
+            csv += "\n【各科小老師】\n科目,需求人數,擔任學生\n";
+            (state.helperSubjects || DEFAULT_HELPER_SUBJECTS).forEach(subj => {
+                const count = subj.count || 1;
+                const assigned = state.students.filter(s => s.helpers && s.helpers.includes(subj.name));
+                const assignedNames = assigned.map(s => `#${s.number} ${s.name}`).join('; ');
+                csv += `"${subj.name}",${count},"${assignedNames}"\n`;
+            });
+
+            downloadCSV(`高一120班_幹部與小老師名冊_${new Date().toISOString().slice(0, 10)}.csv`, csv);
+        }
+
+        function openRoleAssignModal(type, roleName, slotIndex = 0) {
+            document.getElementById('targetRoleType').value = type;
+            document.getElementById('targetRoleName').value = roleName;
+            document.getElementById('targetRoleSlotIndex').value = slotIndex;
+
+            const titleEl = document.getElementById('roleAssignTitle');
+            if (titleEl) titleEl.innerText = type === 'cadre' ? `手動指定幹部: ${roleName}` : `手動指定: ${roleName} 小老師 (名額 ${slotIndex + 1})`;
+
+            const selectEl = document.getElementById('roleAssignStudentSelect');
+            if (selectEl) {
+                selectEl.innerHTML = '<option value="">-- 請選擇學生 --</option>';
+                state.students.forEach(s => {
+                    selectEl.innerHTML += `<option value="${s.id}">#${s.number} ${s.name} (${s.gender})</option>`;
+                });
+
+                if (type === 'cadre') {
+                    const curr = state.students.find(s => s.cadre === roleName);
+                    if (curr) selectEl.value = curr.id;
+                } else {
+                    const assigned = state.students.filter(s => s.helpers && s.helpers.includes(roleName));
+                    if (assigned[slotIndex]) selectEl.value = assigned[slotIndex].id;
+                }
+            }
+
+            document.getElementById('roleAssignModal').classList.remove('hidden');
+        }
+
+        function closeRoleAssignModal() {
+            document.getElementById('roleAssignModal').classList.add('hidden');
+        }
+
+        function confirmRoleAssign() {
+            const type = document.getElementById('targetRoleType').value;
+            const roleName = document.getElementById('targetRoleName').value;
+            const slotIndex = parseInt(document.getElementById('targetRoleSlotIndex').value) || 0;
+            const selectedStudentId = document.getElementById('roleAssignStudentSelect').value;
+
+            if (type === 'cadre') {
+                state.students.forEach(s => { if (s.cadre === roleName) s.cadre = ''; });
+                if (selectedStudentId) {
+                    const st = state.students.find(s => s.id === selectedStudentId);
+                    if (st) st.cadre = roleName;
+                }
+            } else {
+                const assigned = state.students.filter(s => s.helpers && s.helpers.includes(roleName));
+                if (assigned[slotIndex]) {
+                    assigned[slotIndex].helpers = assigned[slotIndex].helpers.filter(h => h !== roleName);
+                }
+                if (selectedStudentId) {
+                    const st = state.students.find(s => s.id === selectedStudentId);
+                    if (st) {
+                        if (!st.helpers) st.helpers = [];
+                        if (!st.helpers.includes(roleName)) st.helpers.push(roleName);
+                    }
+                }
+            }
+
+            saveDataToLocal();
+            renderAllViews();
+            closeRoleAssignModal();
+            showToast('職務指定成功變更！', 'success');
+        }
+
+        function clearRoleAssign() {
+            document.getElementById('roleAssignStudentSelect').value = '';
+            confirmRoleAssign();
+        }
+
+        function openAddCadreModal() {
+            document.getElementById('newCadreTitleInput').value = '';
+            document.getElementById('addCadreModal').classList.remove('hidden');
+        }
+
+        function closeAddCadreModal() {
+            document.getElementById('addCadreModal').classList.add('hidden');
+        }
+
+        function saveNewCadre() {
+            const title = document.getElementById('newCadreTitleInput').value.trim();
+            if (!title) { showToast('請輸入幹部職務名稱', 'error'); return; }
+            if (!state.cadreTitles) state.cadreTitles = [];
+            if (state.cadreTitles.includes(title)) { showToast('該幹部職務已存在！', 'error'); return; }
+
+            state.cadreTitles.push(title);
+            saveDataToLocal();
+            renderCadresAndHelpers();
+            closeAddCadreModal();
+            showToast(`已成功新增幹部職務: ${title}`, 'success');
+        }
+
+        function deleteCadreRole(cadreName) {
+            state.cadreTitles = state.cadreTitles.filter(c => c !== cadreName);
+            state.students.forEach(s => { if (s.cadre === cadreName) s.cadre = ''; });
+            saveDataToLocal();
+            renderAllViews();
+            showToast(`已刪除幹部: ${cadreName}`);
+        }
+
+        function openAddSubjectModal() {
+            document.getElementById('newSubjectNameInput').value = '';
+            document.getElementById('newSubjectQuotaInput').value = '2';
+            document.getElementById('addSubjectModal').classList.remove('hidden');
+        }
+
+        function closeAddSubjectModal() {
+            document.getElementById('addSubjectModal').classList.add('hidden');
+        }
+
+        function saveNewSubject() {
+            const name = document.getElementById('newSubjectNameInput').value.trim();
+            const count = parseInt(document.getElementById('newSubjectQuotaInput').value) || 1;
+
+            if (!name) { showToast('請輸入科目名稱', 'error'); return; }
+            if (!state.helperSubjects) state.helperSubjects = [];
+            if (state.helperSubjects.some(s => s.name === name)) { showToast('該科目小老師已存在！', 'error'); return; }
+
+            state.helperSubjects.push({ name: name, count: count });
+            saveDataToLocal();
+            renderCadresAndHelpers();
+            closeAddSubjectModal();
+            showToast(`已新增小老師科目: ${name} (${count}人)`, 'success');
+        }
+
+        function deleteSubjectRole(subjName) {
+            state.helperSubjects = state.helperSubjects.filter(s => s.name !== subjName);
+            state.students.forEach(s => {
+                if (s.helpers) s.helpers = s.helpers.filter(h => h !== subjName);
+            });
+            saveDataToLocal();
+            renderAllViews();
+            showToast(`已刪除科目: ${subjName}`);
+        }
+
+        function openToolFocus(toolType) {
+            const container = document.getElementById('toolFocusContainer');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (toolType === 'picker') {
+                container.innerHTML = `
+                    <div class="text-center space-y-6">
+                        <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                            <h3 class="text-3xl font-black text-slate-900 flex items-center space-x-2">
+                                <i class="fa-solid fa-dice text-amber-500"></i>
+                                <span>課堂隨機抽籤 (大屏聚焦視角)</span>
+                            </h3>
+                            <span class="text-sm font-black text-slate-500">高一 120 班</span>
+                        </div>
+                        <div class="bg-slate-900 text-amber-300 p-10 rounded-3xl border-4 border-slate-800 shadow-2xl my-6">
+                            <div id="focusedPickerResult" class="text-6xl sm:text-7xl font-black tracking-widest">${document.getElementById('pickerResult')?.innerText || '準備抽籤'}</div>
+                            <div id="focusedPickerSubText" class="text-lg font-bold text-slate-300 mt-4">${document.getElementById('pickerSubText')?.innerText || '請點擊下方大按鈕'}</div>
+                        </div>
+                        <button onclick="pickRandomStudent(); syncFocusPicker();" class="w-full py-5 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-2xl font-black text-2xl border-2 border-slate-900 shadow-xl btn-shadow flex items-center justify-center space-x-3">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>抽取幸運同學</span>
+                        </button>
+                    </div>
+                `;
+            } else if (toolType === 'timer') {
+                container.innerHTML = `
+                    <div class="text-center space-y-6">
+                        <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                            <h3 class="text-3xl font-black text-slate-900 flex items-center space-x-2">
+                                <i class="fa-solid fa-stopwatch text-emerald-600"></i>
+                                <span>課堂倒數計時器 (大屏聚焦視角)</span>
+                            </h3>
+                            <span class="text-sm font-black text-slate-500">高一 120 班</span>
+                        </div>
+                        <div class="bg-slate-900 text-emerald-400 p-12 rounded-3xl border-4 border-slate-800 shadow-2xl my-6">
+                            <div id="focusedTimerDisplay" class="text-7xl sm:text-8xl font-black tracking-widest font-mono">${document.getElementById('timerDisplay')?.innerText || '05:00'}</div>
+                        </div>
+                        <div class="flex justify-center space-x-3 my-4">
+                            <button onclick="setTimerPreset(1); syncFocusTimer();" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-base font-black border border-slate-300">1 分鐘</button>
+                            <button onclick="setTimerPreset(3); syncFocusTimer();" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-base font-black border border-slate-300">3 分鐘</button>
+                            <button onclick="setTimerPreset(5); syncFocusTimer();" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-base font-black border border-slate-300">5 分鐘</button>
+                            <button onclick="setTimerPreset(10); syncFocusTimer();" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-base font-black border border-slate-300">10 分鐘</button>
+                        </div>
+                        <div class="flex space-x-3">
+                            <button onclick="startTimer();" class="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black text-xl border-2 border-slate-900 shadow-lg btn-shadow">
+                                <i class="fa-solid fa-play mr-2"></i> 開始
+                            </button>
+                            <button onclick="pauseTimer();" class="flex-1 py-4 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-2xl font-black text-xl border-2 border-slate-900 shadow-lg btn-shadow">
+                                <i class="fa-solid fa-pause mr-2"></i> 暫停
+                            </button>
+                            <button onclick="resetTimer(); syncFocusTimer();" class="px-8 py-4 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-black text-xl border-2 border-slate-900 shadow-lg btn-shadow">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else if (toolType === 'groups') {
+                container.innerHTML = `
+                    <div class="space-y-6">
+                        <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                            <h3 class="text-3xl font-black text-slate-900 flex items-center space-x-2">
+                                <i class="fa-solid fa-users-viewfinder text-sky-600"></i>
+                                <span>全班動態分組結果 (大屏全畫面)</span>
+                            </h3>
+                            <button onclick="generateGroups(); syncFocusGroups();" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-black shadow btn-shadow flex items-center space-x-1.5">
+                                <i class="fa-solid fa-shuffle"></i>
+                                <span>重新抽籤均分</span>
+                            </button>
+                        </div>
+                        <div id="focusedGroupResultsGrid" class="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto p-1">
+                            ${document.getElementById('groupResultsGrid')?.innerHTML || ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            document.getElementById('toolFocusModal').classList.remove('hidden');
+        }
+
+        function closeToolFocusModal() {
+            document.getElementById('toolFocusModal').classList.add('hidden');
+        }
+
+        function syncFocusPicker() {
+            setTimeout(() => {
+                const res = document.getElementById('pickerResult')?.innerText;
+                const sub = document.getElementById('pickerSubText')?.innerText;
+                const fRes = document.getElementById('focusedPickerResult');
+                const fSub = document.getElementById('focusedPickerSubText');
+                if (fRes && res) fRes.innerText = res;
+                if (fSub && sub) fSub.innerText = sub;
+            }, 50);
+        }
+
+        function syncFocusTimer() {
+            const timerVal = document.getElementById('timerDisplay')?.innerText;
+            const fTimer = document.getElementById('focusedTimerDisplay');
+            if (fTimer && timerVal) fTimer.innerText = timerVal;
+        }
+
+        function syncFocusGroups() {
+            const origGrid = document.getElementById('groupResultsGrid')?.innerHTML;
+            const fGrid = document.getElementById('focusedGroupResultsGrid');
+            if (fGrid && origGrid) fGrid.innerHTML = origGrid;
+        }
+
+        function pickRandomStudent() {
+            const noRepeat = document.getElementById('noRepeatCheck')?.checked ?? false;
+            let availableStudents = [...state.students];
+
+            if (noRepeat) {
+                availableStudents = availableStudents.filter(s => !state.pickedHistory.includes(s.id));
+                if (availableStudents.length === 0) {
+                    state.pickedHistory = [];
+                    availableStudents = [...state.students];
+                    showToast('已完成全班一輪抽籤，名單自動重置！', 'info');
+                }
+            }
+
+            const resEl = document.getElementById('pickerResult');
+            const subEl = document.getElementById('pickerSubText');
+
+            let counter = 0;
+            const timer = setInterval(() => {
+                const randTemp = state.students[Math.floor(Math.random() * state.students.length)];
+                if (randTemp) {
+                    if (resEl) resEl.innerText = `#${randTemp.number} ${randTemp.name}`;
+                    const fRes = document.getElementById('focusedPickerResult');
+                    if (fRes) fRes.innerText = `#${randTemp.number} ${randTemp.name}`;
+                }
+                counter++;
+                if (counter > 14) {
+                    clearInterval(timer);
+                    const selected = availableStudents[Math.floor(Math.random() * availableStudents.length)];
+                    if (selected) {
+                        if (resEl) resEl.innerText = `#${selected.number} ${selected.name}`;
+                        if (subEl) subEl.innerText = `🎉 恭喜幸運抽中！`;
+
+                        const fRes = document.getElementById('focusedPickerResult');
+                        const fSub = document.getElementById('focusedPickerSubText');
+                        if (fRes) fRes.innerText = `#${selected.number} ${selected.name}`;
+                        if (fSub) fSub.innerText = `🎉 恭喜幸運抽中！`;
+
+                        if (noRepeat && !state.pickedHistory.includes(selected.id)) {
+                            state.pickedHistory.push(selected.id);
+                            saveDataToLocal();
+                            updatePickedHistoryUI();
+                        }
+                    }
+                }
+            }, 75);
+        }
+
+        function resetPickedHistory() {
+            state.pickedHistory = [];
+            saveDataToLocal();
+            updatePickedHistoryUI();
+            showToast('抽籤歷史記錄已重置！', 'info');
+        }
+
+        function updatePickedHistoryUI() {
+            const countEl = document.getElementById('pickedHistoryCount');
+            if (countEl) countEl.innerText = `${state.pickedHistory.length} / ${state.students.length} 人`;
+
+            const tagsEl = document.getElementById('pickedHistoryTags');
+            if (!tagsEl) return;
+
+            if (state.pickedHistory.length === 0) {
+                tagsEl.innerHTML = `<span class="text-slate-400 italic">尚無抽籤紀錄</span>`;
+            } else {
+                tagsEl.innerHTML = state.pickedHistory.map(id => {
+                    const st = state.students.find(s => s.id === id);
+                    return st ? `<span class="bg-amber-100 text-slate-900 border border-amber-300 px-2 py-0.5 rounded-lg text-xs font-black">#${st.number} ${st.name}</span>` : '';
+                }).join('');
+            }
+        }
+
+        function generateGroups() {
+            const groupCount = parseInt(document.getElementById('groupCountSelect')?.value ?? 5);
+            let shuffled = [...state.students].sort(() => Math.random() - 0.5);
+
+            let groups = Array.from({ length: groupCount }, () => []);
+            shuffled.forEach((student, idx) => {
+                groups[idx % groupCount].push(student);
+            });
+
+            const gridEl = document.getElementById('groupResultsGrid');
+            if (!gridEl) return;
+            gridEl.innerHTML = '';
+
+            groups.forEach((grp, idx) => {
+                const grpCard = document.createElement('div');
+                grpCard.className = 'bg-sky-50/70 border border-sky-200 p-3.5 rounded-2xl shadow-sm';
+                grpCard.innerHTML = `
+                    <h4 class="font-black text-slate-900 text-sm border-b border-sky-300 pb-1.5 mb-2 flex items-center justify-between">
+                        <span>第 ${idx + 1} 組</span>
+                        <span class="bg-sky-200 text-sky-900 px-2 py-0.5 rounded-full text-xs font-extrabold">${grp.length} 人</span>
+                    </h4>
+                    <div class="space-y-1">
+                        ${grp.map(s => `<div class="text-xs font-bold text-slate-800">#${s.number} ${s.name}</div>`).join('')}
+                    </div>
+                `;
+                gridEl.appendChild(grpCard);
+            });
+
+            syncFocusGroups();
+        }
+
+        function startTimer() {
+            if (timerInterval) return;
+            timerInterval = setInterval(() => {
+                if (timerSeconds > 0) {
+                    timerSeconds--;
+                    updateTimerDisplay();
+                } else {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                    showToast('⏰ 課堂時間到！', 'error');
+                }
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function resetTimer() {
+            pauseTimer();
+            timerSeconds = 300;
+            updateTimerDisplay();
+        }
+
+        function setTimerPreset(mins) {
+            pauseTimer();
+            timerSeconds = mins * 60;
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            const m = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+            const s = String(timerSeconds % 60).padStart(2, '0');
+            const timerEl = document.getElementById('timerDisplay');
+            if (timerEl) timerEl.innerText = `${m}:${s}`;
+            syncFocusTimer();
+        }
+
+        function openPasteRosterModal() { document.getElementById('pasteRosterModal')?.classList.remove('hidden'); }
+        function closePasteRosterModal() { document.getElementById('pasteRosterModal')?.classList.add('hidden'); }
+
+        function processPastedRoster() {
+            const rawText = document.getElementById('pasteRosterArea').value.trim();
+            if (!rawText) { showToast('請先輸入或貼上學生名單', 'error'); return; }
+
+            const lines = rawText.split('\n').filter(line => line.trim() !== '');
+            let parsedStudents = [];
+
+            lines.forEach((line, idx) => {
+                const parts = line.trim().split(/\s+/);
+                let name = '';
+                let gender = ((idx + 1) <= 21 ? '男' : '女');
+
+                if (parts.length === 1) {
+                    name = parts[0];
+                } else if (parts.length >= 2) {
+                    if (!isNaN(parts[0])) {
+                        name = parts[1];
+                        if (parts[2] && (parts[2] === '男' || parts[2] === '女')) gender = parts[2];
+                    } else {
+                        name = parts[0];
+                        if (parts[1] === '男' || parts[1] === '女') gender = parts[1];
+                    }
+                }
+
+                parsedStudents.push({
+                    id: 's_' + (idx + 1),
+                    number: idx + 1,
+                    name: name,
+                    gender: gender,
+                    cadre: '',
+                    helpers: []
+                });
+            });
+
+            state.students = parsedStudents;
+            state.seatingGrid = [];
+            let totalSeats = state.gridRows * state.gridCols;
+            for (let i = 0; i < totalSeats; i++) {
+                let sId = i < state.students.length ? state.students[i].id : null;
+                state.seatingGrid.push({
+                    seatIndex: i,
+                    row: Math.floor(i / state.gridCols),
+                    col: i % state.gridCols,
+                    studentId: sId,
+                    isReserved: sId === null
+                });
+            }
+
+            saveDataToLocal();
+            renderAllViews();
+            closePasteRosterModal();
+            showToast(`成功解析並匯入 ${parsedStudents.length} 位學生名單！`, 'success');
+        }
+
+        function renderStudentTable() {
+            const tbody = document.getElementById('studentTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            state.students.forEach(s => {
+                const dutyNames = state.cleaningDuties
+                    .filter(d => d.assignedIds.includes(s.id))
+                    .map(d => d.name)
+                    .join(', ') || '無';
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 border-b border-slate-200">
+                        <td class="p-3 font-black text-slate-900">#${s.number}</td>
+                        <td class="p-3 font-black text-slate-900 text-lg">${s.name}</td>
+                        <td class="p-3"><span class="px-2.5 py-1 rounded-lg text-xs font-black border border-slate-800 ${s.gender === '男' ? 'bg-sky-200 text-slate-900' : 'bg-rose-200 text-slate-900'}">${s.gender}</span></td>
+                        <td class="p-3">${s.cadre ? `<span class="bg-amber-300 text-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-xs font-black">${s.cadre}</span>` : '<span class="text-slate-400 text-xs">-</span>'}</td>
+                        <td class="p-3">${s.helpers && s.helpers.length ? `<span class="bg-emerald-300 text-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-xs font-black">${s.helpers.join(', ')}</span>` : '<span class="text-slate-400 text-xs">-</span>'}</td>
+                        <td class="p-3 text-xs font-bold text-slate-700">${dutyNames}</td>
+                        <td class="p-3 text-right">
+                            <button onclick="openStudentEditModal('${s.id}')" class="text-slate-900 hover:bg-amber-300 font-black text-xs px-2.5 py-1.5 border border-slate-800 rounded-xl bg-white shadow-sm">編輯</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function openAddStudentModal() {
+            const nextNumber = state.students.length + 1;
+            document.getElementById('editStudentId').value = '';
+            document.getElementById('editStudentNumber').value = nextNumber;
+            document.getElementById('editStudentName').value = '';
+            document.getElementById('editStudentGender').value = '男';
+            document.getElementById('editStudentCadre').value = '';
+            document.getElementById('editStudentHelpers').value = '';
+            document.getElementById('studentEditTitle').innerText = '新增學生資料';
+            document.getElementById('studentEditModal').classList.remove('hidden');
+        }
+
+        function openStudentEditModal(studentId) {
+            const student = state.students.find(s => s.id === studentId);
+            if (!student) return;
+
+            document.getElementById('editStudentId').value = student.id;
+            document.getElementById('editStudentNumber').value = student.number;
+            document.getElementById('editStudentName').value = student.name;
+            document.getElementById('editStudentGender').value = student.gender;
+            document.getElementById('editStudentCadre').value = student.cadre || '';
+            document.getElementById('editStudentHelpers').value = (student.helpers || []).join(', ');
+            document.getElementById('studentEditTitle').innerText = '編輯學生資料';
+            document.getElementById('studentEditModal').classList.remove('hidden');
+        }
+
+        function closeStudentEditModal() { document.getElementById('studentEditModal')?.classList.add('hidden'); }
+
+        function saveStudentEdit() {
+            const id = document.getElementById('editStudentId').value;
+            const num = parseInt(document.getElementById('editStudentNumber').value) || (state.students.length + 1);
+            const name = document.getElementById('editStudentName').value.trim();
+            const gender = document.getElementById('editStudentGender').value;
+            const cadre = document.getElementById('editStudentCadre').value.trim();
+            const helpersStr = document.getElementById('editStudentHelpers').value.trim();
+            const helpers = helpersStr ? helpersStr.split(/[,，]/).map(s => s.trim()).filter(Boolean) : [];
+
+            if (!name) { showToast('請輸入姓名！', 'error'); return; }
+
+            if (id) {
+                const student = state.students.find(s => s.id === id);
+                if (student) {
+                    student.number = num;
+                    student.name = name;
+                    student.gender = gender;
+                    student.cadre = cadre;
+                    student.helpers = helpers;
+                }
+            } else {
+                const newStudent = {
+                    id: 's_' + Date.now(),
+                    number: num,
+                    name: name,
+                    gender: gender,
+                    cadre: cadre,
+                    helpers: helpers
+                };
+                state.students.push(newStudent);
+            }
+
+            saveDataToLocal();
+            renderAllViews();
+            closeStudentEditModal();
+            showToast('學生資料已儲存！', 'success');
+        }
+
+        function openConstraintsModal() {
+            const sel1 = document.getElementById('constraintStudent1');
+            const sel2 = document.getElementById('constraintStudent2');
+            if (sel1) sel1.innerHTML = '';
+            if (sel2) sel2.innerHTML = '';
+
+            state.students.forEach(s => {
+                if (sel1) sel1.innerHTML += `<option value="${s.id}">#${s.number} ${s.name}</option>`;
+                if (sel2) sel2.innerHTML += `<option value="${s.id}">#${s.number} ${s.name}</option>`;
+            });
+
+            renderConstraintsList();
+            document.getElementById('constraintsModal')?.classList.remove('hidden');
+        }
+
+        function closeConstraintsModal() {
+            document.getElementById('constraintsModal')?.classList.add('hidden');
+            renderSeatingGrid();
+        }
+
+        function toggleConstraintInputMode() {
+            const type = document.querySelector('input[name="constraintType"]:checked').value;
+            const targetContainer = document.getElementById('targetStudentContainer');
+            const rowContainer = document.getElementById('rowSelectContainer');
+            const colContainer = document.getElementById('colSelectContainer');
+
+            if (type === 'must_row' || type === 'not_row') {
+                targetContainer?.classList.add('hidden');
+                rowContainer?.classList.remove('hidden');
+                colContainer?.classList.add('hidden');
+            } else if (type === 'must_col' || type === 'not_col') {
+                targetContainer?.classList.add('hidden');
+                rowContainer?.classList.add('hidden');
+                colContainer?.classList.remove('hidden');
+            } else {
+                targetContainer?.classList.remove('hidden');
+                rowContainer?.classList.add('hidden');
+                colContainer?.classList.add('hidden');
+            }
+        }
+
+        function addConstraintRule() {
+            const s1 = document.getElementById('constraintStudent1').value;
+            const s2 = document.getElementById('constraintStudent2').value;
+            const type = document.querySelector('input[name="constraintType"]:checked').value;
+            const rowNum = document.getElementById('constraintRowNumber').value;
+            const colNum = document.getElementById('constraintColNumber').value;
+
+            if ((type === 'together' || type === 'apart') && s1 === s2) {
+                showToast('請選擇不同的兩位學生！', 'error');
+                return;
+            }
+
+            state.constraints.push({
+                id: 'c_' + Date.now(),
+                student1Id: s1,
+                student2Id: s2,
+                type: type,
+                rowNumber: rowNum,
+                colNumber: colNum
+            });
+
+            saveDataToLocal();
+            renderConstraintsList();
+            updateStatsDisplays();
+            showToast('已新增隱密約束條件', 'success');
+        }
+
+        function renderConstraintsList() {
+            const container = document.getElementById('constraintsList');
+            if (!container) return;
+            container.innerHTML = '';
+
+            state.constraints.forEach(c => {
+                const st1 = state.students.find(s => s.id === c.student1Id);
+                const st2 = state.students.find(s => s.id === c.student2Id);
+                if (!st1) return;
+
+                let labelText = '';
+                if (c.type === 'together') labelText = `🤝 必須連坐 (對象: #${st2?.number} ${st2?.name})`;
+                else if (c.type === 'apart') labelText = `❌ 禁止相鄰 (對象: #${st2?.number} ${st2?.name})`;
+                else if (c.type === 'must_row') labelText = `📍 必坐第 ${c.rowNumber} 排 (橫)`;
+                else if (c.type === 'not_row') labelText = `🚫 不坐第 ${c.rowNumber} 排 (橫)`;
+                else if (c.type === 'must_col') labelText = `📍 必坐第 ${c.colNumber} 列 (直)`;
+                else if (c.type === 'not_col') labelText = `🚫 不坐第 ${c.colNumber} 列 (直)`;
+
+                container.innerHTML += `
+                    <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-300 flex items-center justify-between text-xs font-black">
+                        <span>#${st1.number} ${st1.name} 👉 ${labelText}</span>
+                        <button onclick="removeConstraintRule('${c.id}')" class="text-rose-600 hover:text-rose-800 font-black text-sm">&times;</button>
+                    </div>
+                `;
+            });
+        }
+
+        function removeConstraintRule(cId) {
+            state.constraints = state.constraints.filter(c => c.id !== cId);
+            saveDataToLocal();
+            renderConstraintsList();
+            updateStatsDisplays();
+        }
+
+        function openAddDutyModal() { document.getElementById('addDutyModal')?.classList.remove('hidden'); }
+        function closeAddDutyModal() { document.getElementById('addDutyModal')?.classList.add('hidden'); }
+
+        function saveNewDuty() {
+            const name = document.getElementById('newDutyName').value.trim();
+            const category = document.getElementById('newDutyCategory').value;
+            const count = parseInt(document.getElementById('newDutyRequiredCount').value);
+
+            if (!name) { showToast('請輸入工作名稱', 'error'); return; }
+
+            state.cleaningDuties.push({
+                id: 'd_' + Date.now(),
+                name: name,
+                category: category,
+                requiredCount: count,
+                assignedIds: [],
+                completed: false
+            });
+
+            saveDataToLocal();
+            renderCleaningDuties();
+            closeAddDutyModal();
+            showToast('已新增打掃工作區域！', 'success');
+        }
+
+        function deleteDuty(dutyId) {
+            state.cleaningDuties = state.cleaningDuties.filter(d => d.id !== dutyId);
+            saveDataToLocal();
+            renderCleaningDuties();
+        }
+
+        function unassignStudentFromDuty(dutyId, studentId) {
+            const duty = state.cleaningDuties.find(d => d.id === dutyId);
+            if (duty) {
+                duty.assignedIds = duty.assignedIds.filter(id => id !== studentId);
+                saveDataToLocal();
+                renderCleaningDuties();
+            }
+        }
+
+        function openAssignDutyStudentModal(dutyId) {
+            const duty = state.cleaningDuties.find(d => d.id === dutyId);
+            if (!duty) return;
+
+            document.getElementById('targetDutyId').value = dutyId;
+            document.getElementById('dutyAssignTitle').innerText = `指派掃地人員：${duty.name}`;
+
+            const selectEl = document.getElementById('dutyAssignStudentSelect');
+            selectEl.innerHTML = '<option value="">-- 請選擇學生 --</option>';
+
+            const isFemaleRestroom = duty.category.includes('女廁') || duty.name.includes('女廁');
+
+            state.students.forEach(s => {
+                const isAssigned = duty.assignedIds.includes(s.id);
+                const isWrongGender = isFemaleRestroom && s.gender !== '女';
+                let tagStr = isAssigned ? ' - 已在名單中' : (isWrongGender ? ' - ⚠️ 限女同學打掃' : '');
+
+                selectEl.innerHTML += `<option value="${s.id}" ${isAssigned || isWrongGender ? 'disabled' : ''}>#${s.number} ${s.name} (${s.gender})${tagStr}</option>`;
+            });
+
+            document.getElementById('dutyAssignModal').classList.remove('hidden');
+        }
+
+        function closeDutyAssignModal() { document.getElementById('dutyAssignModal')?.classList.add('hidden'); }
+
+        function confirmDutyAssign() {
+            const dutyId = document.getElementById('targetDutyId').value;
+            const studentId = document.getElementById('dutyAssignStudentSelect').value;
+
+            if (!studentId) { showToast('請先選擇一位學生！', 'error'); return; }
+
+            const duty = state.cleaningDuties.find(d => d.id === dutyId);
+            const student = state.students.find(s => s.id === studentId);
+
+            const isFemaleRestroom = duty && (duty.category.includes('女廁') || duty.name.includes('女廁'));
+            if (isFemaleRestroom && student && student.gender !== '女') {
+                showToast('女廁打掃工作僅限指派女同學！', 'error');
+                return;
+            }
+
+            if (duty && !duty.assignedIds.includes(studentId)) {
+                duty.assignedIds.push(studentId);
+                saveDataToLocal();
+                renderCleaningDuties();
+                closeDutyAssignModal();
+                showToast(`已指派 #${student?.number} ${student?.name} 至 ${duty.name}！`, 'success');
+            }
+        }
+
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `高一120班級經營備份_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast('備份檔案下載成功！', 'success');
+        }
+
+        function triggerImportJSON() { document.getElementById('importFileInput')?.click(); }
+
+        function importDataJSON(event) {
+            const fileReader = new FileReader();
+            fileReader.onload = function(e) {
+                try {
+                    state = JSON.parse(e.target.result);
+                    saveDataToLocal();
+                    renderAllViews();
+                    showToast('成功匯入備份資料！', 'success');
+                } catch (err) {
+                    showToast('檔案格式錯誤，匯入失敗。', 'error');
+                }
+            };
+            fileReader.readAsText(event.target.files[0]);
+        }
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = `px-4 py-3 rounded-2xl font-black text-sm text-white shadow-xl border border-slate-900 transform transition-all duration-300 translate-y-5 opacity-0 pointer-events-auto flex items-center space-x-2 ${
+                type === 'error' ? 'bg-rose-600' : type === 'success' ? 'bg-emerald-600' : 'bg-slate-800'
+            }`;
+            toast.innerHTML = `<i class="fa-solid fa-circle-info"></i><span>${msg}</span>`;
+            container.appendChild(toast);
+            
+            setTimeout(() => { toast.classList.remove('translate-y-5', 'opacity-0'); }, 10);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
